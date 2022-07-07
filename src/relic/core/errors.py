@@ -22,7 +22,7 @@ T = TypeVar("T")
 
 class MismatchError(Generic[T], Exception):
     """
-    An error where an expected value did not match the actual recieved value.
+    An error where an expected value did not match the actual received value.
     """
 
     def __init__(self, name: str, received: Optional[T] = None, expected: Optional[T] = None):
@@ -33,3 +33,4 @@ class MismatchError(Generic[T], Exception):
 
     def __str__(self) -> str:
         return _print_mismatch(self.name, self.received, self.expected)
+

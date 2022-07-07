@@ -22,7 +22,7 @@ copyright = '2022, Marcus Kertesz'
 author = 'Marcus Kertesz'
 
 # The full version, including alpha/beta/rc tags
-from relic import __version__ as package_version
+from relic.core import __version__ as package_version
 release = package_version
 
 # -- General configuration ---------------------------------------------------
