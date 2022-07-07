@@ -25,7 +25,9 @@ class MismatchError(Generic[T], Exception):
     An error where an expected value did not match the actual received value.
     """
 
-    def __init__(self, name: str, received: Optional[T] = None, expected: Optional[T] = None):
+    def __init__(
+        self, name: str, received: Optional[T] = None, expected: Optional[T] = None
+    ):
         super().__init__()
         self.name = name
         self.received = received
@@ -33,4 +35,3 @@ class MismatchError(Generic[T], Exception):
 
     def __str__(self) -> str:
         return _print_mismatch(self.name, self.received, self.expected)
-
