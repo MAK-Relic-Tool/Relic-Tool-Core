@@ -35,3 +35,4 @@ class MismatchError(Generic[T], Exception):
 
     def __str__(self) -> str:
         return _print_mismatch(self.name, self.received, self.expected)
+
