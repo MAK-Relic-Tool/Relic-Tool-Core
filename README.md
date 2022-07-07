@@ -1,4 +1,4 @@
-# Relic Tool Core
+# Relic Tool - Core
 [![PyPI](https://img.shields.io/pypi/v/relic-tool-core)](https://pypi.org/project/relic-tool-core/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/relic-tool-core)](https://www.python.org/downloads/)
 [![PyPI - License](https://img.shields.io/pypi/l/relic-tool)](https://github.com/ModernMAK/Relic-Tool-Core/blob/main/LICENSE.txt)
