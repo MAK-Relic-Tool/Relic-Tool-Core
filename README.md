@@ -10,6 +10,7 @@
 [![MyPy](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/mypy.yml/badge.svg)](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/mypy.yml)
 #### Disclaimer
 Not affiliated with Sega, Relic Entertainment, or THQ.
+
 #### Description
 Core files for Relic-Tool subpackages.
 
@@ -23,3 +24,6 @@ For more information, see [pip VCS support](https://pip.pypa.io/en/stable/topics
 ```
 pip install git+https://github.com/MAK-Relic-Tool/Relic-Tool-Core
 ```
+
+### Project Links
+#### [Issue Tracker](https://github.com/MAK-Relic-Tool/Issue-Tracker/issues)
