@@ -20,7 +20,15 @@ def _print_mismatch(name: str, received: Optional[Any], expected: Optional[Any])
 T = TypeVar("T")
 
 
-class MismatchError(Generic[T], Exception):
+class RelicToolError(Exception):
+    """
+    Marks an Error as a RelicToolError. Does nothing special.
+    """
+
+    ...
+
+
+class MismatchError(Generic[T], RelicToolError):
     """
     An error where an expected value did not match the actual received value.
     """
@@ -37,4 +45,4 @@ class MismatchError(Generic[T], Exception):
         return _print_mismatch(self.name, self.received, self.expected)
 
 
-__all__ = ["T", "MismatchError"]
+__all__ = ["T", "MismatchError", "RelicToolError"]

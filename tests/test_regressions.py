@@ -23,6 +23,7 @@ def test_import_module(submodule: str):
 
 errors__all__ = [
     "MismatchError",
+    "RelicToolError",
     "T",
 ]
 typeshed__all__ = [
@@ -43,4 +44,4 @@ def module_imports_helper(submodule: str, all: List[str]) -> Iterable[Tuple[str,
 )
 def test_module_imports(submodule: str, attribute: str):
     module = importlib.import_module(f"relic.core.{submodule}")
-    _ = getattr(module,attribute)
+    _ = getattr(module, attribute)
