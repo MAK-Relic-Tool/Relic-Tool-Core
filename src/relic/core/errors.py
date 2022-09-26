@@ -25,8 +25,6 @@ class RelicToolError(Exception):
     Marks an Error as a RelicToolError. Does nothing special.
     """
 
-    ...
-
 
 class MismatchError(Generic[T], RelicToolError):
     """
