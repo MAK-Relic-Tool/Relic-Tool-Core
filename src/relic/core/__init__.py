@@ -1,4 +1,4 @@
 """
 Core files shared between other Relic-Tool packages.
 """
-__version__ = "1.0.3"
+__version__ = "1.0.4"
