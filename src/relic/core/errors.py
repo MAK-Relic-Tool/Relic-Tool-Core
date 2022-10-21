@@ -6,13 +6,13 @@ from typing import Any, Optional, TypeVar, Generic
 
 def _print_mismatch(name: str, received: Optional[Any], expected: Optional[Any]) -> str:
     msg = f"Unexpected {name}"
-    if received or expected:
+    if received is not None or expected is not None:
         msg += ";"
-    if received:
+    if received is not None:
         msg += f" got `{str(received)}`"
-    if received and expected:
+    if received is not None and expected is not None:
         msg += ","
-    if expected:
+    if expected is not None:
         msg += f" expected `{str(expected)}`"
     return msg + "!"
 
