@@ -1,6 +1,6 @@
 # Relic Tool - Core
 [![PyPI](https://img.shields.io/pypi/v/relic-tool-core)](https://pypi.org/project/relic-tool-core/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/relic-tool-core)](https://www.python.org/downloads/)
+[![PyPI - Python Version](https://img.shields.io/pypi/v/relic-tool-core)](https://www.python.org/downloads/)
 [![PyPI - License](https://img.shields.io/pypi/l/relic-tool-core)](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/blob/main/LICENSE.txt)
 [![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/PyCQA/pylint)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
@@ -10,9 +10,8 @@
 [![MyPy](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/mypy.yml/badge.svg)](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/mypy.yml)
 #### Disclaimer
 Not affiliated with Sega, Relic Entertainment, or THQ.
-
 #### Description
-Core files for Relic-Tool subpackages.
+The core library used by other Relic-Tool packages.
 
 ## Installation (Pip)
 ### Installing from PyPI (Recommended)
@@ -20,10 +19,10 @@ Core files for Relic-Tool subpackages.
 pip install relic-tool-core
 ```
 ### Installing from GitHub
-For more information, see [pip VCS support](https://pip.pypa.io/en/stable/topics/vcs-support/#git).
+For more information, see [pip VCS support](https://pip.pypa.io/en/stable/topics/vcs-support/#git)
 ```
 pip install git+https://github.com/MAK-Relic-Tool/Relic-Tool-Core
 ```
 
-### Project Links
-#### [Issue Tracker](https://github.com/MAK-Relic-Tool/Issue-Tracker/issues)
+## Report A Bug / Issue
+Visit the [Issue Tracker](https://github.com/MAK-Relic-Tool/Issue-Tracker/issues)
