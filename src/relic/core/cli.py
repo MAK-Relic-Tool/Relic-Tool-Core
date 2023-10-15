@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import Optional, TYPE_CHECKING, Protocol, Any
+from typing import Optional, TYPE_CHECKING, Protocol, Any, Union
 
 import pkg_resources
 
@@ -18,7 +18,7 @@ class _SubParsersAction:  # pylint: disable= too-few-public-methods # typechecke
         help: Optional[str] = None,
         **kwargs: Any,
     ) -> ArgumentParser:
-        ...
+        raise NotImplementedError
 
 
 class CliEntrypoint(Protocol):  # pylint: disable= too-few-public-methods
@@ -36,12 +36,12 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
                 "Command defined in argparse, but it's function was not specified."
             )
         cmd = ns.cmd
-        result = cmd(ns)
+        result: Optional[int] = cmd(ns)
         if result is None:  # Assume success
             result = 0
         return result
 
-    def run_with(self, *args: Any) -> Optional[int]:
+    def run_with(self, *args: Any) -> Union[str, int, None]:
         try:
             ns = self.parser.parse_args(args)
             return self._run(ns)
