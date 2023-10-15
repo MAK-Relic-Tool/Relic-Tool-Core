@@ -22,9 +22,7 @@ if TYPE_CHECKING:
 
 
 class CliEntrypoint(Protocol):  # pylint: disable= too-few-public-methods
-    def __call__(
-        self, parent: Optional[_SubParsersAction], autoload: bool
-    ) -> Optional[int]:
+    def __call__(self, parent: Optional[_SubParsersAction]) -> Optional[int]:
         raise NotImplementedError
 
 
@@ -58,8 +56,6 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
     def __init__(
         self,
         parent: Optional[_SubParsersAction] = None,
-        autoload: bool = True,
-        **kwargs: Any,
     ):
         if TYPE_CHECKING:
             self.subparsers = None
@@ -68,8 +64,6 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         parser = self._create_parser(parent)
         super().__init__(parser)
         self.subparsers = self._create_subparser_group(parser)
-        if autoload:
-            self._load(autoload)
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
@@ -79,14 +73,14 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
     def _create_subparser_group(self, parser: ArgumentParser) -> _SubParsersAction:
         return parser.add_subparsers()  # type: ignore
 
-    def _load(self, autoload: bool = False) -> None:
+    def _load(self) -> None:
         for ep in pkg_resources.iter_entry_points(group=self.GROUP):
             ep_func: CliEntrypoint = ep.load()
-            ep_func(parent=self.subparsers, autoload=autoload)
+            ep_func(parent=self.subparsers)
 
 
 class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
-    def __init__(self, parent: Optional[_SubParsersAction] = None, **kwargs: Any):
+    def __init__(self, parent: Optional[_SubParsersAction] = None):
         parser = self._create_parser(parent)
         super().__init__(parser)
         if self.parser.get_default("cmd") is None:
