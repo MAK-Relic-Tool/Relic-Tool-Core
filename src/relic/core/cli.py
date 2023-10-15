@@ -55,7 +55,12 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
     GROUP: str = None  # type: ignore
 
-    def __init__(self, parent: _SubParsersAction, autoload: bool = True, **kwargs: Any):
+    def __init__(
+        self,
+        parent: Optional[_SubParsersAction] = None,
+        autoload: bool = True,
+        **kwargs: Any,
+    ):
         if TYPE_CHECKING:
             self.subparsers = None
         if self.GROUP is None:
@@ -81,7 +86,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
 
 
 class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
-    def __init__(self, parent: Optional[_SubParsersAction], **kwargs: Any):
+    def __init__(self, parent: Optional[_SubParsersAction] = None, **kwargs: Any):
         parser = self._create_parser(parent)
         super().__init__(parser)
         if self.parser.get_default("cmd") is None:
