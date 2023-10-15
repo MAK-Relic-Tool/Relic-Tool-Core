@@ -32,8 +32,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
     def __init__(self, parser: ArgumentParser):
         self.parser = parser
 
-    def run(self, *args: Any) -> None:
-        ns = self.parser.parse_args(args)
+    def _run(self, ns: Namespace) -> None:
         if not hasattr(ns, "cmd"):
             raise NotImplementedError(
                 "Command defined in argparse, but it's function was not specified."
@@ -43,6 +42,14 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if result is None:  # Assume success
             result = 0
         sys.exit(result)
+
+    def run_with(self, *args: Any) -> None:
+        ns = self.parser.parse_args(args)
+        self._run(ns)
+
+    def run(self) -> None:
+        ns = self.parser.parse_args()
+        self._run(ns)
 
 
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
