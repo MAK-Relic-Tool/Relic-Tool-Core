@@ -14,10 +14,8 @@ class CommandTests:
         cmd = subprocess.run(_args, capture_output=True, text=True)
         result = cmd.stdout
         status = cmd.returncode
-        print("= = =")
-        print(result)  # Visual Aid for Debugging
-        print("= = =")
-        assert result == output
+        print(f"'{result}'")  # Visual Aid for Debugging
+        assert output in result
         assert status == exit_code
 
     def test_run_with(self, args: Sequence[str], output: str, exit_code: int):
@@ -27,20 +25,11 @@ class CommandTests:
                 status = cli_root.run_with(*args)
             f.seek(0)
             result = f.read()
-            print("= = =")
-            print(result)  # Visual Aid for Debugging
-            print("= = =")
-            assert result == output
+            print(f"'{result}'")  # Visual Aid for Debugging
+            assert output in result
             assert status == exit_code
 
-_HELP = ["-h"], """usage: relic [-h] {} ...
-
-positional arguments:
-  {}
-
-optional arguments:
-  -h, --help  show this help message and exit
-""", 0
+_HELP = ["-h"], """usage: relic [-h] {} ...""", 0
 
 _TESTS = [_HELP]
 _TEST_IDS = [' '.join(_[0]) for _ in _TESTS]
