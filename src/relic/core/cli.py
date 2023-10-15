@@ -110,3 +110,6 @@ class RelicCli(CliPluginGroup):  # pylint: disable= too-few-public-methods
         if command_group is None:
             return ArgumentParser("relic")
         return command_group.add_parser("relic")
+
+
+cli_root = RelicCli()
