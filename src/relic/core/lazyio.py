@@ -16,6 +16,8 @@ from typing import (
     TypeVar, Any, Literal,
 )
 
+from relic.core.errors import RelicToolError
+
 _DEBUG_CLOSE = True
 
 
@@ -31,8 +33,9 @@ class BinaryWrapper(BinaryIO):
     def __enter__(self) -> BinaryIO:
         return self
 
+    @property
     def name(self) -> str:
-        return self._name or self._parent.name
+        return self._name or (self._parent.name if hasattr(self._parent,"name") else None)
 
     def close(self) -> None:
         if self._close_parent:
@@ -177,7 +180,13 @@ class BinaryWindow(BinaryWrapper):
         raise NotImplementedError
 
     def write(self, __s: AnyStr) -> int:
-        raise NotImplementedError  # TODO
+        remaining = self._remaining
+
+        if len(__s) > remaining:
+            raise RelicToolError(f"Cannot write {len(__s)} bytes, only {remaining} bytes remaining!")
+
+        with self.__rw_ctx():
+            return super().write(__s)
 
     def writelines(self, __lines: Iterable[AnyStr]) -> None:
         raise NotImplementedError  # TODO
