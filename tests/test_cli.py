@@ -20,6 +20,7 @@ class CommandTests:
 
     def test_run_with(self, args: Sequence[str], output: str, exit_code: int):
         from relic.core.cli import cli_root
+
         with io.StringIO() as f:
             with redirect_stdout(f):
                 status = cli_root.run_with(*args)
@@ -29,10 +30,11 @@ class CommandTests:
             assert output in result
             assert status == exit_code
 
+
 _HELP = ["-h"], """usage: relic [-h] {} ...""", 0
 
 _TESTS = [_HELP]
-_TEST_IDS = [' '.join(_[0]) for _ in _TESTS]
+_TEST_IDS = [" ".join(_[0]) for _ in _TESTS]
 
 
 @pytest.mark.parametrize(["args", "output", "exit_code"], _TESTS, ids=_TEST_IDS)

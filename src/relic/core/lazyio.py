@@ -13,7 +13,9 @@ from typing import (
     Tuple,
     Dict,
     Optional,
-    TypeVar, Any, Literal,
+    TypeVar,
+    Any,
+    Literal,
 )
 
 from relic.core.errors import RelicToolError
@@ -23,7 +25,7 @@ _DEBUG_CLOSE = True
 
 class BinaryWrapper(BinaryIO):
     def __init__(
-            self, parent: BinaryIO, close_parent: bool = True, name: Optional[str] = None
+        self, parent: BinaryIO, close_parent: bool = True, name: Optional[str] = None
     ):
         self._parent = parent
         self._close_parent = close_parent
@@ -35,13 +37,16 @@ class BinaryWrapper(BinaryIO):
 
     @property
     def name(self) -> str:
-        return self._name or (self._parent.name if hasattr(self._parent,"name") else None)
+        return self._name or (
+            self._parent.name if hasattr(self._parent, "name") else None
+        )
 
     def close(self) -> None:
         if self._close_parent:
             self._parent.close()
         self._closed = True
 
+    @property
     def closed(self) -> bool:
         return self._parent.closed or self._closed
 
@@ -94,14 +99,15 @@ class BinaryWrapper(BinaryIO):
         return self._parent.__iter__()
 
     def __exit__(
-            self,
-            __t: Type[BaseException] | None,
-            __value: BaseException | None,
-            __traceback: TracebackType | None,
+        self,
+        __t: Type[BaseException] | None,
+        __value: BaseException | None,
+        __traceback: TracebackType | None,
     ) -> bool | None:
         # TODO, this may fail to close the file if an err is thrown
         if self._close_parent:
             return self._parent.__exit__(__t, __value, __traceback)
+        return None
 
     @property
     def mode(self) -> str:
@@ -110,12 +116,12 @@ class BinaryWrapper(BinaryIO):
 
 class BinaryWindow(BinaryWrapper):
     def __init__(
-            self,
-            parent: BinaryIO,
-            start: int,
-            size: int,
-            close_parent: bool = False,
-            name: Optional[str] = None,
+        self,
+        parent: BinaryIO,
+        start: int,
+        size: int,
+        close_parent: bool = False,
+        name: Optional[str] = None,
     ):
         super().__init__(parent, close_parent, name=name)
         self._now = 0
@@ -150,13 +156,13 @@ class BinaryWindow(BinaryWrapper):
             raise ValueError(__whence)
 
         if new_now < 0:  # or new_now > self._size # Allow seek past end of file?
-            __WHENCE_STR = {
+            __whence_str = {
                 os.SEEK_SET: "start",
                 os.SEEK_CUR: "offset",
                 os.SEEK_END: "end",
             }[__whence]
             raise NotImplementedError(
-                0, new_now, self._size, "~", __offset, __WHENCE_STR
+                0, new_now, self._size, "~", __offset, __whence_str
             )  # TODO
         super().seek(self._start + new_now)
         self._now = new_now
@@ -183,7 +189,9 @@ class BinaryWindow(BinaryWrapper):
         remaining = self._remaining
 
         if len(__s) > remaining:
-            raise RelicToolError(f"Cannot write {len(__s)} bytes, only {remaining} bytes remaining!")
+            raise RelicToolError(
+                f"Cannot write {len(__s)} bytes, only {remaining} bytes remaining!"
+            )
 
         with self.__rw_ctx():
             return super().write(__s)
@@ -194,11 +202,11 @@ class BinaryWindow(BinaryWrapper):
 
 class LazyBinary(BinaryWrapper):
     def __init__(
-            self,
-            parent: BinaryIO,
-            close_parent: bool = False,
-            cacheable: Optional[bool] = None,
-            name: Optional[str] = None,
+        self,
+        parent: BinaryIO,
+        close_parent: bool = False,
+        cacheable: Optional[bool] = None,
+        name: Optional[str] = None,
     ):
         super().__init__(parent, close_parent=close_parent, name=name)
         if cacheable is None:
@@ -219,9 +227,9 @@ class LazyBinary(BinaryWrapper):
             key = (offset, size)
             if key in self._cache:
                 return self._cache[key]
-            else:
-                value = self._cache[key] = _read()
-                return value
+
+            value = self._cache[key] = _read()
+            return value
         else:
             return _read()
 
@@ -241,7 +249,7 @@ class LazyBinary(BinaryWrapper):
 
     @classmethod
     def __pack_int(
-            cls, v: int, length: int, byteorder="little", signed: bool = False
+        cls, v: int, length: int, byteorder="little", signed: bool = False
     ) -> bytes:
         return v.to_bytes(length, byteorder, signed=signed)
 
@@ -254,7 +262,7 @@ class LazyBinary(BinaryWrapper):
         return cls.__pack_int(v, 2, byteorder, False)
 
 
-ByteOrder = Literal['big', 'little']
+ByteOrder = Literal["big", "little"]
 
 
 class BinaryReader:
@@ -274,13 +282,20 @@ class BinaryReader:
             key = (offset, size)
             if key in self._cache:
                 return self._cache[key]
-            else:
-                value = self._cache[key] = self._raw_read(offset, size)
-                return value
+
+            value = self._cache[key] = self._raw_read(offset, size)
+            return value
         else:
             return self._raw_read(offset, size)
 
-    def _read_int(self, offset: int, size: Optional[int], byteorder: ByteOrder, signed: bool, valid_size:int):
+    def _read_int(
+        self,
+        offset: int,
+        size: Optional[int],
+        byteorder: ByteOrder,
+        signed: bool,
+        valid_size: int,
+    ):
         size = self._validate_size(size, valid_size)
         buffer = self.read_bytes(offset, size)
         return int.from_bytes(buffer, byteorder=byteorder, signed=signed)
@@ -293,31 +308,61 @@ class BinaryReader:
             raise ValueError
         return size
 
-    def read_uint8(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=False, valid_size=1)
+    def read_uint8(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=False, valid_size=1
+        )
 
-    def read_int8(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=True, valid_size=1)
+    def read_int8(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=True, valid_size=1
+        )
 
-    def read_uint16(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=False, valid_size=2)
+    def read_uint16(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=False, valid_size=2
+        )
 
-    def read_int16(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=True, valid_size=2)
+    def read_int16(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=True, valid_size=2
+        )
 
-    def read_uint32(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=False, valid_size=4)
+    def read_uint32(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=False, valid_size=4
+        )
 
-    def read_int32(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=True, valid_size=4)
+    def read_int32(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=True, valid_size=4
+        )
 
-    def read_uint64(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=False, valid_size=8)
+    def read_uint64(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=False, valid_size=8
+        )
 
-    def read_int64(self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"):
-        return self._read_int(offset, size, byteorder=byteorder, signed=True, valid_size=8)
-
-
+    def read_int64(
+        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
+    ):
+        return self._read_int(
+            offset, size, byteorder=byteorder, signed=True, valid_size=8
+        )
 
 
 T = TypeVar("T")
@@ -355,7 +400,7 @@ class ZLibFileReader(BinaryWrapper):
     def read(self, __n: int = -1) -> AnyStr:
         remaining = self._remaining
         size = min(remaining, __n) if __n != -1 else remaining
-        buffer = self._data[self._now: self._now + size]
+        buffer = self._data[self._now : self._now + size]
         self._now += size
         return buffer
 
@@ -400,6 +445,7 @@ class ZLibFile(BinaryWrapper):
         self._pos_in_buffer = 0
         self._buffer = None
         self._data = None
+        # self._now = 0
 
     @property
     def _remaining(self):
@@ -408,14 +454,14 @@ class ZLibFile(BinaryWrapper):
     def _read_buffer(self):
         self._buffer = super().read(self._buffer_size)
         self._data = self._decompressor.decompress(self._buffer)
-        self._now = self.tell()
+        # self._now = self.tell()
 
     def _read_from_buffer(self, size: int = -1) -> bytes:
         if self._remaining == 0 or self._data is None:
             self._read_buffer()
         if size > self._remaining or size == -1:
             size = self._remaining
-        data = self._data[self._pos_in_buffer: self._pos_in_buffer + size]
+        data = self._data[self._pos_in_buffer : self._pos_in_buffer + size]
         self._pos_in_buffer += size
         return data
 
