@@ -43,7 +43,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
 
     def run_with(self, *args: Any) -> Union[str, int, None]:
         if len(args) > 0 and self.parser.prog == args[0]:
-            args = args[1:] # allow prog to be first command
+            args = args[1:]  # allow prog to be first command
         try:
             ns = self.parser.parse_args(args)
             return self._run(ns)
