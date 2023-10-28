@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import zlib
 from contextlib import contextmanager
@@ -15,7 +16,7 @@ from typing import (
     Optional,
     TypeVar,
     Any,
-    Literal,
+    Literal, Protocol, Union,
 )
 
 from relic.core.errors import RelicToolError
@@ -23,11 +24,25 @@ from relic.core.errors import RelicToolError
 _DEBUG_CLOSE = True
 
 
+def is_proxy(s: BinaryProxy):
+    return hasattr(s,BinaryProxy.__binio_proxy__.__name__)
+def get_proxy(s: Union[BinaryProxy,BinaryIO]) -> BinaryIO:
+    if is_proxy(s):
+        proxy = s.__binio_proxy__()
+        return get_proxy(proxy) # resolve nested proxies
+    return s
+
+class BinaryProxy(Protocol):
+    def __binio_proxy__(self) -> Union[BinaryIO,BinaryProxy]:
+        raise NotImplementedError
+
+
+
 class BinaryWrapper(BinaryIO):
     def __init__(
-        self, parent: BinaryIO, close_parent: bool = True, name: Optional[str] = None
+        self, parent: Union[BinaryProxy,BinaryIO], close_parent: bool = True, name: Optional[str] = None
     ):
-        self._parent = parent
+        self._handle = get_proxy(parent)
         self._close_parent = close_parent
         self._closed = False
         self._name = name
@@ -37,66 +52,63 @@ class BinaryWrapper(BinaryIO):
 
     @property
     def name(self) -> str:
-        return self._name or (
-            self._parent.name if hasattr(self._parent, "name") else None
-        )
+        return self._name or (self._handle.name if hasattr(self._handle, "name") else None)
 
     def close(self) -> None:
         if self._close_parent:
-            self._parent.close()
+            self._handle.close()
         self._closed = True
 
-    @property
     def closed(self) -> bool:
-        return self._parent.closed or self._closed
+        return self._handle.closed or self._closed
 
     def fileno(self) -> int:
-        return self._parent.fileno()
+        return self._handle.fileno()
 
     def flush(self) -> None:
-        return self._parent.flush()
+        return self._handle.flush()
 
     def isatty(self) -> bool:
-        return self._parent.isatty()
+        return self._handle.isatty()
 
     def read(self, __n: int = -1) -> AnyStr:
-        return self._parent.read(__n)
+        return self._handle.read(__n)
 
     def readable(self) -> bool:
-        return self._parent.readable()
+        return self._handle.readable()
 
     def readline(self, __limit: int = -1) -> AnyStr:
-        return self._parent.readline(__limit)
+        return self._handle.readline(__limit)
 
     def readlines(self, __hint: int = -1) -> list[AnyStr]:
-        return self._parent.readlines(__hint)
+        return self._handle.readlines(__hint)
 
     def seek(self, __offset: int, __whence: int = 0) -> int:
-        return self._parent.seek(__offset, __whence)
+        return self._handle.seek(__offset, __whence)
 
     def seekable(self) -> bool:
-        return self._parent.seekable()
+        return self._handle.seekable()
 
     def tell(self) -> int:
-        return self._parent.tell()
+        return self._handle.tell()
 
     def truncate(self, __size: int | None = ...) -> int:
-        return self._parent.truncate()
+        return self._handle.truncate()
 
     def writable(self) -> bool:
-        return self._parent.writable()
+        return self._handle.writable()
 
     def write(self, __s: AnyStr) -> int:
-        return self._parent.write(__s)
+        return self._handle.write(__s)
 
     def writelines(self, __lines: Iterable[AnyStr]) -> None:
-        return self._parent.writelines(__lines)
+        return self._handle.writelines(__lines)
 
     def __next__(self) -> AnyStr:
-        return self._parent.__next__()
+        return self._handle.__next__()
 
     def __iter__(self) -> Iterator[AnyStr]:
-        return self._parent.__iter__()
+        return self._handle.__iter__()
 
     def __exit__(
         self,
@@ -106,18 +118,31 @@ class BinaryWrapper(BinaryIO):
     ) -> bool | None:
         # TODO, this may fail to close the file if an err is thrown
         if self._close_parent:
-            return self._parent.__exit__(__t, __value, __traceback)
-        return None
+            return self._handle.__exit__(__t, __value, __traceback)
 
     @property
     def mode(self) -> str:
-        return self._parent.mode
+        if hasattr(self._handle,"mode"):
+            return self._handle.mode
+
+        readable = self.readable()
+        writable = self.writable()
+
+        if readable and writable:
+            return r"w+b"
+        elif readable:
+            return r"rb"
+        elif writable:
+            return r"wb"
+        else:
+            raise RelicToolError(f"Binary Wrapper could not determine mode for object that is not readable or writeable; the IO object may not be supported.")
+
 
 
 class BinaryWindow(BinaryWrapper):
     def __init__(
         self,
-        parent: BinaryIO,
+        parent: Union[BinaryIO,BinaryProxy],
         start: int,
         size: int,
         close_parent: bool = False,
@@ -200,169 +225,206 @@ class BinaryWindow(BinaryWrapper):
         raise NotImplementedError  # TODO
 
 
-class LazyBinary(BinaryWrapper):
+class BinarySerializer(BinaryProxy):
+    class CStringOps:
+        def __init__(self, serialzer:BinarySerializer):
+            self._serializer = serialzer
+
+        def read(self, offset: int, size: int, *, encoding: str, padding: Optional[str] = None, exact_size: bool = True) -> str:
+            buffer = self._serializer.read_bytes(offset, size, exact_size=exact_size)
+            result = self.unpack(buffer, encoding=encoding, padding=padding)
+            return result
+
+        def write(self, value:str, offset:int, size:int, *, encoding:str, padding:Optional[str]= None) -> int:
+            buffer = self.pack(value,encoding=encoding,size=size,padding=padding)
+            return self._serializer.write_bytes(buffer,offset,size)
+
+        @classmethod
+        def unpack(cls, b: bytes, encoding: str, padding: Optional[str] = None) -> str:
+            value = b.decode(encoding)
+            if padding is not None:
+                value = value.strip(padding)
+            return value
+
+        @classmethod
+        def pack(
+            cls,
+            v: str,
+            encoding: str,
+            size: Optional[int] = None,
+            padding: Optional[str] = None,
+        ) -> bytes:
+            buffer = v.encode(encoding)
+            if size is not None:
+                if len(buffer) < size and padding is not None and len(padding) > 0:
+                    pad_buffer = padding.encode(encoding)
+                    pad_count = (size - len(buffer)) / len(pad_buffer)
+                    if pad_count != int(pad_count):
+                        raise RelicToolError(
+                            f"Trying to pad '{buffer}' ({len(buffer)}) to '{size}' bytes, but padding '{pad_buffer}' ({len(pad_buffer)}) is not a multiple of '{size-len(buffer)}' !"
+                        )
+                    buffer = b"".join([buffer, pad_buffer * int(pad_count)])
+                elif len(buffer) != size:
+                    raise RelicToolError(
+                        f"Trying to write '{size}' bytes, received '{buffer}' ({len(buffer)})!"
+                    )
+            return buffer
+
+    class _IntOps:
+        def __init__(self, serialzer: BinarySerializer):
+            self._serializer = serialzer
+        def read(self, offset: int, size: Optional[int] = None, *, byteorder: Literal["little", "big"] = "little", signed:bool=False) -> int:
+            if size is None:
+                raise RelicToolError(f"Cannot dynamically determine size of the int buffer; please specify the size manually or use a sized int reader")
+            buffer = self._serializer.read_bytes(offset, size, exact_size=True)
+            result = self.unpack(buffer, length=size, byteorder=byteorder, signed=signed)
+            return result
+
+        def write(self, value: int, offset: int, size: Optional[int] = None, *, byteorder: Literal["little", "big"] = "little", signed:bool=False) -> int:
+            if size is None:
+                raise RelicToolError(f"Cannot dynamically determine size of the int buffer; please specify the size manually or use a sized int writer")
+            buffer = self.pack(value, byteorder=byteorder, length=size, signed=signed)
+            return self._serializer.write_bytes(buffer, offset, size)
+
+        @classmethod
+        def unpack(cls, b: bytes, length: Optional[int], byteorder: Literal["little", "big"] = "little", signed: bool = False) -> int:
+            if length is not None and len(b) != length:
+                raise RelicToolError(f"Size mismatch, unpacking '{b}' got ({len(b)}) bytes but expected ({length}) bytes.")
+            return int.from_bytes(b, byteorder, signed=signed)
+
+        @classmethod
+        def pack(
+                cls, v: int, length: int, byteorder: Literal["little", "big"] = "little", signed: bool = False
+        ) -> bytes:
+            return v.to_bytes(length, byteorder, signed=signed)
+
+    class SizedIntOps(_IntOps):
+        def __init__(self, serialzer: BinarySerializer, size: int, signed: bool):
+            super().__init__(serialzer)
+            self._size = size
+            self._signed = signed
+
+        def _validate_args(self, size: Optional[int], signed:bool):
+            recieved_size = size  if size is not None else self._size
+
+            expected = f"{'' if self._signed else 'U'}Int-{self._size * 8}"
+            recieved = f"{'' if self._signed else 'U'}Int-{recieved_size * 8}"
+            if size is not None and size != self._size:
+                raise RelicToolError(f"Size mismatch! Expecting a '{expected}' but receiving a '{recieved}'!")
+            if signed != self._signed:
+                raise RelicToolError(f"Signed mismatch! Expecting a '{expected}' but receiving a '{recieved}'!")
+
+        def read(self, offset: int, size: Optional[int] = None, *, byteorder: Literal["little", "big"] = "little", signed:bool=False) -> int:
+            self._validate_args(size,signed)
+            buffer = self._serializer.read_bytes(offset, self._size, exact_size=True)
+            result = self.unpack(buffer, byteorder=byteorder, signed=self._signed)
+            return result
+
+        def write(self, value: int, offset: int, size: Optional[int] = None, *, byteorder: Literal["little", "big"] = "little", signed:bool=False) -> int:
+            self._validate_args(size,signed)
+            buffer = self.pack(value, byteorder=byteorder, length=self._size, signed=self._signed)
+            return self._serializer.write_bytes(buffer, offset, size)
+
+        def read_le(self, offset: int, size: Optional[int] = None) -> int:
+            return self.read(offset=offset, size=size, byteorder="little")
+
+        def write_le(self, value: int, offset: int, size: Optional[int] = None) -> int:
+            return self.write(value=value, offset=offset, size=size, byteorder="little")
+
+        def read_be(self, offset: int, size: Optional[int] = None) -> int:
+            return self.read(offset=offset, size=size, byteorder="big")
+
+        def write_be(self, value: int, offset: int, size: Optional[int] = None) -> int:
+            return self.write(value=value, offset=offset, size=size, byteorder="big")
+
+
+        def unpack(self, b: bytes, length:Optional[int] = None, byteorder: Literal["little", "big"] = "little", signed: bool = False) -> int:
+            self._validate_args(length, signed)
+            return int.from_bytes(b, byteorder=byteorder, signed=self._signed)
+
+        def pack(
+                self, v: int, length: Optional[int] = None, byteorder: Literal["little", "big"] = "little", signed: bool = False
+        ) -> bytes:
+            self._validate_args(length, signed)
+            return v.to_bytes(self._size, byteorder= byteorder, signed=self._signed)
+
+
     def __init__(
         self,
-        parent: BinaryIO,
+        parent: Union[BinaryIO,BinaryProxy],
         close_parent: bool = False,
         cacheable: Optional[bool] = None,
-        name: Optional[str] = None,
     ):
-        super().__init__(parent, close_parent=close_parent, name=name)
+        self._proxy = parent
+        self._close = close_parent
         if cacheable is None:
-            cacheable = "r" in parent.mode
+            cacheable = parent.readable() and not parent.writable()
 
         cache = {} if cacheable else None
         self._cache: Optional[Dict[Tuple[int, int], bytes]] = cache
 
-    def _read_bytes(self, offset: int, size: Optional[int]) -> bytes:
-        if size is None:
-            size = -1
+        self.c_string = self.CStringOps(self)
+        self.int = self._IntOps(self)
 
+        self.uint16 = self.SizedIntOps(self, 2, signed=False)
+        self.int16 = self.SizedIntOps(self, 2, signed=True)
+
+        self.uint32 = self.SizedIntOps(self, 4, signed=False)
+        self.int32 = self.SizedIntOps(self, 4, signed=True)
+
+    def __binio_proxy__(self) -> Union[BinaryIO,BinaryProxy]:
+        return self._proxy
+
+    @property
+    def stream(self):
+        return get_proxy(self._proxy)
+
+
+
+    # Bytes
+    def read_bytes(self, offset: int, size: int, *, exact_size:bool=True) -> bytes:
         def _read():
-            self.seek(offset)
-            return self.read(size)
+            self.stream.seek(offset)
+            b = self.stream.read(size)
+            if exact_size and len(b) != size:
+                raise RelicToolError(
+                    f"Trying to read '{size}' bytes, received '{b}' ({len(b)})!"
+                )
+            return b
 
         if self._cache is not None:
             key = (offset, size)
             if key in self._cache:
                 return self._cache[key]
-
-            value = self._cache[key] = _read()
-            return value
+            else:
+                value = self._cache[key] = _read()
+                return value
         else:
             return _read()
 
-    def _write_bytes(self, b: bytes, offset, size):
-        if len(b) > size:
-            raise NotImplementedError
-        self.seek(offset)
-        return self.write(b)
+    def write_bytes(self, b: bytes, offset: int, size: Optional[int] = None):
+        if size is not None and len(b) != size:
+            raise RelicToolError(
+                f"Trying to write '{size}' bytes, received '{b}' ({len(b)})!"
+            )
+        self.stream.seek(offset)
+        return self.stream.write(b)
 
-    @classmethod
-    def _unpack_str(cls, b: bytes, encoding: str):
-        return b.decode(encoding)
 
-    @classmethod
-    def _unpack_int(cls, b: bytes, byteorder="little", signed: bool = False) -> int:
-        return int.from_bytes(b, byteorder, signed=signed)
 
-    @classmethod
-    def __pack_int(
-        cls, v: int, length: int, byteorder="little", signed: bool = False
-    ) -> bytes:
-        return v.to_bytes(length, byteorder, signed=signed)
+class BinaryProxySerializer(BinaryProxy):
+    def __init__(
+            self,
+            stream: Union[BinaryIO, BinaryProxy],
+    ):
+        self._serializer = BinarySerializer(stream)
 
-    @classmethod
-    def _unpack_uint16(cls, b: bytes, byteorder="little"):
-        return cls._unpack_int(b, byteorder, False)
-
-    @classmethod
-    def _pack_uint16(cls, v: int, byteorder="little"):
-        return cls.__pack_int(v, 2, byteorder, False)
+    def __binio_proxy__(self) -> Union[BinaryIO,BinaryProxy]:
+        return self._serializer
 
 
 ByteOrder = Literal["big", "little"]
 
-
-class BinaryReader:
-    def __init__(self, stream: BinaryIO):
-        self._stream = stream
-        self._cache: Dict[Tuple[int, Optional[int]], Any] = {}
-
-    def _raw_read(self, offset: int, size: int) -> bytes:
-        self._stream.seek(offset)
-        return self._stream.read(size)
-
-    def read_bytes(self, offset: int, size: Optional[int]) -> bytes:
-        if size is None:
-            size = -1
-
-        if self._cache is not None:
-            key = (offset, size)
-            if key in self._cache:
-                return self._cache[key]
-
-            value = self._cache[key] = self._raw_read(offset, size)
-            return value
-        else:
-            return self._raw_read(offset, size)
-
-    def _read_int(
-        self,
-        offset: int,
-        size: Optional[int],
-        byteorder: ByteOrder,
-        signed: bool,
-        valid_size: int,
-    ):
-        size = self._validate_size(size, valid_size)
-        buffer = self.read_bytes(offset, size)
-        return int.from_bytes(buffer, byteorder=byteorder, signed=signed)
-
-    @staticmethod
-    def _validate_size(size: Optional[int], valid: int) -> int:
-        if size is None:
-            size = valid
-        elif size != valid:
-            raise ValueError
-        return size
-
-    def read_uint8(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=False, valid_size=1
-        )
-
-    def read_int8(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=True, valid_size=1
-        )
-
-    def read_uint16(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=False, valid_size=2
-        )
-
-    def read_int16(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=True, valid_size=2
-        )
-
-    def read_uint32(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=False, valid_size=4
-        )
-
-    def read_int32(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=True, valid_size=4
-        )
-
-    def read_uint64(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=False, valid_size=8
-        )
-
-    def read_int64(
-        self, offset: int, size: Optional[int] = None, byteorder: ByteOrder = "little"
-    ):
-        return self._read_int(
-            offset, size, byteorder=byteorder, signed=True, valid_size=8
-        )
 
 
 T = TypeVar("T")
@@ -371,7 +433,7 @@ _KiB = 1024
 
 
 class ZLibFileReader(BinaryWrapper):
-    def __init__(self, parent: BinaryIO, *, chunk_size: int = 16 * _KiB):
+    def __init__(self, parent: Union[BinaryIO,BinaryProxy], *, chunk_size: int = 16 * _KiB):
         super().__init__(parent)
         self._data_cache = None
         self._now = 0
@@ -387,7 +449,7 @@ class ZLibFileReader(BinaryWrapper):
             parts = []
             decompressor = zlib.decompressobj()
             while True:
-                chunk = self._parent.read(self._chunk_size)
+                chunk = self._handle.read(self._chunk_size)
                 if len(chunk) == 0:
                     break
                 part = decompressor.decompress(chunk)
@@ -436,7 +498,7 @@ class ZLibFileReader(BinaryWrapper):
 
 
 class ZLibFile(BinaryWrapper):
-    def __init__(self, parent: BinaryIO, *, buffer_size: int = 16 * _KiB):
+    def __init__(self, parent: Union[BinaryIO,BinaryProxy], *, buffer_size: int = 16 * _KiB):
         super().__init__(parent)
         # self._compressor = zlib.compressobj()
         self._decompressor = zlib.decompressobj()
@@ -511,3 +573,59 @@ def tell_end(stream: BinaryIO):
     end = stream.seek(0, 2)
     stream.seek(now)
     return end
+
+
+
+def read_chunks(
+    stream: Union[BinaryIO,bytes],
+    start: Optional[int] = None,
+    size: Optional[int] = None,
+    chunk_size: int = _KiB * 16,
+):
+    if isinstance(stream,bytes):
+        if start is None:
+            start = 0
+        if size is None:
+            size = len(stream) - start
+        for index in range(math.ceil(size / chunk_size)):
+            read_start = start + index * chunk_size
+            read_end = start + min((index + 1) * chunk_size, size)
+            yield stream[read_start:read_end]
+    else:
+        if start is not None:
+            stream.seek(start)
+        if size is None:
+            while True:
+                buffer = stream.read(chunk_size)
+                if len(buffer) == 0:
+                    return
+                yield buffer
+        else:
+            while size > 0:
+                buffer = stream.read(min(size, chunk_size))
+                size -= len(buffer)
+                if len(buffer) == 0:
+                    return
+                yield buffer
+
+def chunk_copy(
+    input: Union[BinaryIO,bytes],
+    output: Union[BinaryIO,bytes],
+    input_start: Optional[int] = None,
+    size: Optional[int] = None,
+    output_start: Optional[int] = None,
+    chunk_size: int = _KiB * 16):
+
+    if isinstance(output,bytes):
+        if output_start is None:
+            output_start = 0
+
+        for i, chunk in enumerate(read_chunks(input,input_start,size,chunk_size)):
+            chunk_offset = i*chunk_size
+            chunk_size = len(chunk)
+            output[input_start+chunk_offset:input_start+chunk_offset+chunk_size] = chunk
+    else:
+        if output_start is not None:
+            output.seek(output_start)
+        for chunk in read_chunks(input,input_start,size,chunk_size):
+            output.write(chunk)

@@ -3,7 +3,7 @@ from typing import BinaryIO, Optional
 
 import pytest
 
-from relic.core.lazyio import BinaryWrapper, LazyBinary, BinaryWindow
+from relic.core.lazyio import BinaryWrapper, BinarySerializer, BinaryWindow
 
 
 class TestBinaryWrapper:
