@@ -6,16 +6,18 @@ import pytest
 from relic.core.lazyio import BinaryWrapper, BinarySerializer, BinaryWindow
 
 
+_TestBinaryWrapper_AutoNamed = [BytesIO()]
+
 class TestBinaryWrapper:
     @pytest.mark.parametrize(
         ["stream", "name"],
         [
             (BinaryWrapper(BytesIO(), name="Bradley"), "Bradley"),
             (BinaryWindow(BytesIO(), 0, 0, name="Steven"), "Steven"),
-            (BytesIO(), None),
+            *((stream, str(stream)) for stream in _TestBinaryWrapper_AutoNamed)
         ],
     )
-    def test_name(self, stream: BinaryIO, name: Optional[str]):
+    def test_name(self, stream: BinaryIO, name: str):
         with BinaryWrapper(stream) as wrapper:
             assert wrapper.name == name
 
