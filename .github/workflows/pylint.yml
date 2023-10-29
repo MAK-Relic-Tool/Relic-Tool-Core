@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
 
   push:
-    branches: [ main ]
+    branches: [ main, staging ]
     paths:
       - 'src/**'
       - '.github/workflows/pylint.yml'
       - '.pylintrc'
       - 'requirements.txt'
   pull_request:
-    branches: [ main ]
+    branches: [ main, staging ]
     paths:
       - 'src/**'
       - '.github/workflows/pylint.yml'
