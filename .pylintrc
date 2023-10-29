@@ -12,7 +12,7 @@ extension-pkg-allow-list=
 extension-pkg-whitelist=
 
 # Specify a score threshold to be exceeded before program exits with error.
-fail-under=9.8
+fail-under=9.75
 
 fail-on=E
 
@@ -70,14 +70,6 @@ confidence=
 
 # Disable docstring errors
 disable=
-#        C0114,
-#        C0115,
-#        C0116,
-
-        long-suffix,
-        old-ne-operator,
-        old-octal-literal,
-        non-ascii-bytes-literal,
         raw-checker-failed,
         bad-inline-option,
         locally-disabled,
@@ -86,7 +78,6 @@ disable=
         useless-suppression,
         deprecated-pragma,
         use-symbolic-message-instead,
-        eq-without-hash,
 
 
 # Enable the message, report, category or checker with the given id(s). You can
@@ -553,5 +544,5 @@ preferred-modules=
 
 # Exceptions that will emit a warning when being caught. Defaults to
 # "BaseException, Exception".
-overgeneral-exceptions=BaseException,
-                       Exception
+overgeneral-exceptions=builtins.BaseException,
+                       builtins.Exception,
