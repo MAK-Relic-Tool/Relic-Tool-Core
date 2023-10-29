@@ -28,7 +28,7 @@ from relic.core.errors import RelicToolError
 
 
 @runtime_checkable
-class BinaryProxy(Protocol): # pylint: disable=too-few-public-methods
+class BinaryProxy(Protocol):  # pylint: disable=too-few-public-methods
     def __binio_proxy__(self) -> Union[BinaryIO, BinaryProxy]:
         raise NotImplementedError
 
@@ -199,9 +199,7 @@ class BinaryWindow(BinaryWrapper):
                 os.SEEK_CUR: "offset",
                 os.SEEK_END: "end",
             }[__whence]
-            raise NotImplementedError(
-                0, new_now, self._size, "~", __offset, __whence_str
-            )  # TODO
+            raise RelicToolError("Invalid Seek: seeking past start of stream!")
         super().seek(self._start + new_now)
         self._now = new_now
         return self._now
@@ -235,7 +233,7 @@ class BinaryWindow(BinaryWrapper):
             return super().write(__s)
 
     def writelines(self, __lines: Iterable[Union[bytes, Buffer]]) -> None:
-        raise NotImplementedError  # TODO
+        raise NotImplementedError
 
 
 class _CStringOps:
@@ -441,7 +439,7 @@ class _SizedIntOps(_IntOps):
         return v.to_bytes(self._size, byteorder=byteorder, signed=self._signed)
 
 
-class BinarySerializer(BinaryProxy): # pylint: disable= too-many-instance-attributes
+class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attributes
     def __init__(
         self,
         parent: Union[BinaryIO, BinaryProxy],
