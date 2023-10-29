@@ -23,8 +23,7 @@ from typing import (
     List,
 )
 
-from typing_extensions import Buffer
-
+from relic.core.typeshed import Buffer
 from relic.core.errors import RelicToolError
 
 
