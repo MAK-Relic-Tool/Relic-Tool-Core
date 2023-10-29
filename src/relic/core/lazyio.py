@@ -24,7 +24,7 @@ from typing import (
 )
 
 from relic.core.typeshed import Buffer
-from relic.core.errors import RelicToolError
+from relic.core.errors import RelicToolError, MismatchError
 
 
 @runtime_checkable
@@ -343,9 +343,7 @@ class _IntOps:
         signed: bool = False,
     ) -> int:
         if length is not None and len(b) != length:
-            raise RelicToolError(
-                f"Size mismatch, unpacking '{b!r}' got ({len(b)}) bytes but expected ({length}) bytes."
-            )
+            raise MismatchError("Buffer Size", len(b), length)
         return int.from_bytes(b, byteorder, signed=signed)
 
     @staticmethod
@@ -359,24 +357,18 @@ class _IntOps:
 
 
 class _SizedIntOps(_IntOps):
-    def __init__(self, serialzer: BinarySerializer, size: int, signed: bool):
-        super().__init__(serialzer)
+    def __init__(self, serializer: BinarySerializer, size: int, signed: bool):
+        super().__init__(serializer)
         self._size = size
         self._signed = signed
 
     def _validate_args(self, size: Optional[int], signed: bool) -> None:
-        recieved_size = size if size is not None else self._size
+        received_size = size if size is not None else self._size
 
         expected = f"{'' if self._signed else 'U'}Int-{self._size * 8}"
-        recieved = f"{'' if self._signed else 'U'}Int-{recieved_size * 8}"
-        if size is not None and size != self._size:
-            raise RelicToolError(
-                f"Size mismatch! Expecting a '{expected}' but receiving a '{recieved}'!"
-            )
-        if signed != self._signed:
-            raise RelicToolError(
-                f"Signed mismatch! Expecting a '{expected}' but receiving a '{recieved}'!"
-            )
+        received = f"{'' if signed else 'U'}Int-{received_size * 8}"
+        if expected != received:
+            raise MismatchError("Int Type", received, expected)
 
     def read(
         self,
@@ -476,9 +468,7 @@ class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attri
             self.stream.seek(offset)
             b = self.stream.read(size)
             if exact_size and len(b) != size:
-                raise RelicToolError(
-                    f"Trying to read '{size}' bytes, received '{b!r}' ({len(b)})!"
-                )
+                raise MismatchError("Read Mismatch", len(b), size)
             return b
 
         if self._cache is not None:
@@ -492,9 +482,7 @@ class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attri
 
     def write_bytes(self, b: bytes, offset: int, size: Optional[int] = None) -> int:
         if size is not None and len(b) != size:
-            raise RelicToolError(
-                f"Trying to write '{size}' bytes, received '{b!r}' ({len(b)})!"
-            )
+            raise MismatchError("Write Mismatch", len(b), size)
         self.stream.seek(offset)
         return self.stream.write(b)
 

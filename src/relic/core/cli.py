@@ -11,6 +11,8 @@ from typing import Optional, TYPE_CHECKING, Protocol, Any, Union
 
 import pkg_resources
 
+from relic.core.errors import UnboundCommandError
+
 
 # Circumvent mypy/pylint shenanigans ~
 class _SubParsersAction:  # pylint: disable= too-few-public-methods # typechecker only, ignore warnings
@@ -27,6 +29,10 @@ class _SubParsersAction:  # pylint: disable= too-few-public-methods # typechecke
         help: Optional[str] = None,
         **kwargs: Any,
     ) -> ArgumentParser:
+        """
+        Adds a parser to the parent parser this is binded to.
+        See argparse for more details.
+        """
         raise NotImplementedError
 
 
@@ -52,17 +58,40 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         self.parser = parser
 
     def _run(self, ns: Namespace) -> int:
-        if not hasattr(ns, "cmd"):
-            raise NotImplementedError(
-                "Command defined in argparse, but it's function was not specified."
-            )
-        cmd = ns.cmd
-        result: Optional[int] = cmd(ns)
+        """
+        Run the command using args provided by namespace
+
+        :param ns: The namespace containing the args the command was called with
+        :type ns: Namespace
+
+        :raises NotImplementedError: The command was defined, but was not bound to a function
+
+        :returns: An integer representing the status code; 0 by default if the command does not return a status code
+        :rtype: int
+        """
+
+        if hasattr(ns, "command"):
+            cmd = ns.command
+        else:
+            cmd = self.parser.prog
+
+        if not hasattr(ns, "function"):
+            raise UnboundCommandError(cmd)
+        func = ns.function
+        result: Optional[int] = func(ns)
         if result is None:  # Assume success
             result = 0
         return result
 
-    def run_with(self, *args: Any) -> Union[str, int, None]:
+    def run_with(self, *args: str) -> Union[str, int, None]:
+        """
+        Run the command line interface with the given arguments.
+        :param args: The arguments that will be run on the command line interface.
+        :type args: str
+
+        :returns: The status code or status message.
+        :rtype: Union[str,int,None]
+        """
         if len(args) > 0 and self.parser.prog == args[0]:
             args = args[1:]  # allow prog to be first command
         try:
@@ -72,6 +101,12 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
             return sys_exit.code
 
     def run(self) -> None:
+        """
+        Run the command line interface, using arguments from sys.argv, then terminates the process.
+
+        :returns: Nothing; the process is terminated
+        :rtype: None
+        """
         ns = self.parser.parse_args()
         exit_code = self._run(ns)
         sys.exit(exit_code)
@@ -99,7 +134,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         raise NotImplementedError
 
     def _create_subparser_group(self, parser: ArgumentParser) -> _SubParsersAction:
-        return parser.add_subparsers()  # type: ignore
+        return parser.add_subparsers(dest="command")  # type: ignore
 
     def _load(self) -> None:
         for ep in pkg_resources.iter_entry_points(group=self.GROUP):
@@ -111,8 +146,8 @@ class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
     def __init__(self, parent: Optional[_SubParsersAction] = None):
         parser = self._create_parser(parent)
         super().__init__(parser)
-        if self.parser.get_default("cmd") is None:
-            self.parser.set_defaults(cmd=self.command)
+        if self.parser.get_default("function") is None:
+            self.parser.set_defaults(function=self.command)
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
@@ -135,3 +170,6 @@ class RelicCli(CliPluginGroup):  # pylint: disable= too-few-public-methods
 
 
 cli_root = RelicCli()
+
+if __name__ == "__main__":
+    cli_root.run()
