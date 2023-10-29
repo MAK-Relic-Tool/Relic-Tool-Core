@@ -8,12 +8,45 @@
 [![Pytest](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/pytest.yml/badge.svg)](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/pytest.yml)
 [![Pylint](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/pylint.yml/badge.svg)](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/pylint.yml)
 [![MyPy](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/mypy.yml/badge.svg)](https://github.com/MAK-Relic-Tool/Relic-Tool-Core/actions/workflows/mypy.yml)
-#### Disclaimer
-Not affiliated with Sega, Relic Entertainment, or THQ.
-#### Description
+
+### Description
 The core library used by other Relic-Tool packages.
 
-## Installation (Pip)
+------
+
+## Usage
+### From the Command Line Interface
+While the core library does not define any commands; it does define the command line. To discover installed commands, run the following.
+
+```console
+relic -h
+```
+
+### From Python Code
+Commands can also be run directly from the library; To discover installed commands, run the following.
+```python
+from relic.core import CLI
+
+exit_status = CLI.run_with('-h')
+```
+### Troubleshooting
+#### No Commands are installed!
+The core package does not define any CLI functionality itself.
+
+If no options are specified, check to see if other Relic-Tool packages are installed that offer command line integration.
+
+You can do this by running the following:
+```console
+python -m pip list
+```
+And looking for `relic-tool-...` in the command's output.
+
+If you only see `relic-tool-core`, you need to install the desired Relic-Tool package the command belongs to.
+
+
+------
+
+# Installation (Pip)
 ### Installing from PyPI (Recommended)
 ```
 pip install relic-tool-core
@@ -24,5 +57,14 @@ For more information, see [pip VCS support](https://pip.pypa.io/en/stable/topics
 pip install git+https://github.com/MAK-Relic-Tool/Relic-Tool-Core
 ```
 
-## Report A Bug / Issue
-Visit the [Issue Tracker](https://github.com/MAK-Relic-Tool/Issue-Tracker/issues)
+------
+
+## [I Have an Issue / Found a Bug](https://github.com/MAK-Relic-Tool/Issue-Tracker/issues)
+Click the link above, to visit the Issue Tracker
+
+------
+
+## Disclaimer
+Not affiliated with Sega, Relic Entertainment, or THQ.
+
+
