@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import Optional, TYPE_CHECKING, Protocol, Any, Union
+from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List, Sequence
 
 import pkg_resources
 
@@ -57,22 +57,28 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
     def __init__(self, parser: ArgumentParser):
         self.parser = parser
 
-    def _run(self, ns: Namespace) -> int:
+    def _run(self, ns: Namespace, argv: Optional[Sequence[str]] = None) -> int:
         """
         Run the command using args provided by namespace
 
         :param ns: The namespace containing the args the command was called with
         :type ns: Namespace
 
-        :raises NotImplementedError: The command was defined, but was not bound to a function
+        :param argv: The calling cli args; used only for error messages.
+        :type argv: Optional[Sequence[str]], optional
+
+        :raises UnboundCommandError: The command was defined, but was not bound to a function
 
         :returns: An integer representing the status code; 0 by default if the command does not return a status code
         :rtype: int
         """
-
+        cmd = None
         if hasattr(ns, "command"):
             cmd = ns.command
-        else:
+            # if cmd is specified but not None; then argv[-1] may not be a command name
+            if cmd is None and argv is not None and len(argv) > 0:
+                cmd = argv[-1]  # get last part of command
+        if cmd is None:
             cmd = self.parser.prog
 
         if not hasattr(ns, "function"):
@@ -96,7 +102,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
             args = args[1:]  # allow prog to be first command
         try:
             ns = self.parser.parse_args(args)
-            return self._run(ns)
+            return self._run(ns, args)
         except SystemExit as sys_exit:
             return sys_exit.code
 
@@ -108,7 +114,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         :rtype: None
         """
         ns = self.parser.parse_args()
-        exit_code = self._run(ns)
+        exit_code = self._run(ns, sys.argv)
         sys.exit(exit_code)
 
 
@@ -127,6 +133,8 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         super().__init__(parser)
         self.subparsers = self._create_subparser_group(parser)
         self._load()
+        if self.parser.get_default("function") is None:
+            self.parser.set_defaults(function=self.command)
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
@@ -140,6 +148,10 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         for ep in pkg_resources.iter_entry_points(group=self.GROUP):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
+
+    def command(self, ns: Namespace) -> Optional[int]:
+        self.parser.print_help(sys.stderr)
+        return 1
 
 
 class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
