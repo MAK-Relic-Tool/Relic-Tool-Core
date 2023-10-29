@@ -8,13 +8,14 @@ from relic.core.lazyio import BinaryWrapper, BinarySerializer, BinaryWindow
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
 
+
 class TestBinaryWrapper:
     @pytest.mark.parametrize(
         ["stream", "name"],
         [
             (BinaryWrapper(BytesIO(), name="Bradley"), "Bradley"),
             (BinaryWindow(BytesIO(), 0, 0, name="Steven"), "Steven"),
-            *((stream, str(stream)) for stream in _TestBinaryWrapper_AutoNamed)
+            *((stream, str(stream)) for stream in _TestBinaryWrapper_AutoNamed),
         ],
     )
     def test_name(self, stream: BinaryIO, name: str):
