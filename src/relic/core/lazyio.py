@@ -30,11 +30,13 @@ ByteOrder = Literal["big", "little"]
 
 _KIBIBYTE = 1024
 
+
 @runtime_checkable
 class BinaryProxy(Protocol):  # pylint: disable=too-few-public-methods
     """
     A Protocol allowing classes to proxy being a BianryIO to lazyio classes
     """
+
     def __binio_proxy__(self) -> Union[BinaryIO, BinaryProxy]:
         """
         Get the instance this class proxies to
@@ -187,6 +189,7 @@ class BinaryWindow(BinaryWrapper):
 
     Maintains an internal pointer to the current position of the window, ignoring the parent stream's current position
     """
+
     def __init__(
         self,
         parent: Union[BinaryIO, BinaryProxy],
@@ -274,6 +277,7 @@ class _CStringOps:
     """
     Provides utility functions for serializing C-String Buffers
     """
+
     def __init__(self, serialzer: BinarySerializer):
         self._serializer = serialzer
 
@@ -328,7 +332,7 @@ class _CStringOps:
                     )
                 buffer = b"".join([buffer, pad_buffer * int(pad_count)])
             elif len(buffer) != size:
-                raise MismatchError("Writing Bytes",len(buffer),size)
+                raise MismatchError("Writing Bytes", len(buffer), size)
         return buffer
 
 
@@ -338,6 +342,7 @@ class _IntOps:
 
     Provides more dynamic read/writes at the expense of less validity checks than _SizedIntOps
     """
+
     def __init__(self, serialzer: BinarySerializer):
         self._serializer = serialzer
 
@@ -402,6 +407,7 @@ class _SizedIntOps(_IntOps):
 
     Provides more validation over input/output then _IntOps
     """
+
     def __init__(self, serializer: BinarySerializer, size: int, signed: bool):
         super().__init__(serializer)
         self._size = size
@@ -482,6 +488,7 @@ class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attri
 
     Acts as a BinaryProxy which points to the parent object it reads from/writes to
     """
+
     def __init__(
         self,
         parent: Union[BinaryIO, BinaryProxy],
@@ -550,8 +557,6 @@ class BinaryProxySerializer(BinaryProxy):  # pylint: disable= R0903
 
     def __binio_proxy__(self) -> Union[BinaryIO, BinaryProxy]:
         return self._serializer
-
-
 
 
 class ZLibFileReader(BinaryWrapper):
