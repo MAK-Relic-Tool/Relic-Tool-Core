@@ -9,7 +9,7 @@ on:
       - 'src/relic/**'
       - '.github/workflows/black.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, staging ]
     paths:
       - 'src/relic/**'
       - '.github/workflows/black.yml'
