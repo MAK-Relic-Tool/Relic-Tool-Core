@@ -9,15 +9,9 @@ else:
     from typing_extensions import TypeAlias  # pylint: disable=no-name-in-module
 
 if sys.version_info[0:2] >= (3, 12):
-    from collections.abc import Buffer # pylint: disable=no-name-in-module
+    from collections.abc import Buffer  # pylint: disable=no-name-in-module
 else:
-    from typing_extensions import Buffer # pylint: disable=no-name-in-module
+    from typing_extensions import Buffer  # pylint: disable=no-name-in-module
 
 
-
-
-
-__all__ = [
-    "TypeAlias",
-    "Buffer"
-]
+__all__ = ["TypeAlias", "Buffer"]

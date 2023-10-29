@@ -1,3 +1,8 @@
+"""
+Core files for implementing a Command Line Interface using Entrypoints
+
+
+"""
 from __future__ import annotations
 
 import sys
@@ -9,6 +14,10 @@ import pkg_resources
 
 # Circumvent mypy/pylint shenanigans ~
 class _SubParsersAction:  # pylint: disable= too-few-public-methods # typechecker only, ignore warnings
+    """
+    A Faux class to fool MyPy because argparser does python magic to bind subparsers to their parent parsers
+    """
+
     def add_parser(  # pylint: disable=redefined-builtin, unused-argument # typechecker only, ignore warnings
         self,
         name: str,
@@ -22,7 +31,19 @@ class _SubParsersAction:  # pylint: disable= too-few-public-methods # typechecke
 
 
 class CliEntrypoint(Protocol):  # pylint: disable= too-few-public-methods
-    def __call__(self, parent: Optional[_SubParsersAction]) -> Optional[int]:
+    """
+    A protocol defining the expected entrypoint format when defining CLI Plugins
+    """
+
+    def __call__(self, parent: Optional[_SubParsersAction]) -> None:
+        """
+        Attach a parser to the parent subparser group.
+        :param parent: The parent subparser group, if None, this is not being loaded as an entrypoint
+        :type parent: Optional[_SubParsersAction]
+
+        :returns: Nothing, if something is returned it should be ignored
+        :rtype: None
+        """
         raise NotImplementedError
 
 

@@ -5,6 +5,27 @@ from typing import Any, Optional, TypeVar, Generic
 
 
 def _print_mismatch(name: str, received: Optional[Any], expected: Optional[Any]) -> str:
+    """
+    Constructs a string detailing a mismatch between a received and expected input
+
+    :param name: The name of the variable which received unexpected input
+    :type name: str
+
+    :param received: The value of the received input
+    :type received: Optional[Any]
+
+    :param expected: The value(s) of the expected input
+    :type expected: Optional[Any]
+
+    :return: A string formatted as one of the following (varies by input)
+        'Unexpcted {name}!'
+        'Unexpcted {name}; got {recieved}!'
+        'Unexpcted {name}; expected {expected}!'
+        'Unexpcted {name}; got {recieved}, expected {expected}!'
+
+    :rtype: str
+    """
+
     msg = f"Unexpected {name}"
     if received is not None or expected is not None:
         msg += ";"
