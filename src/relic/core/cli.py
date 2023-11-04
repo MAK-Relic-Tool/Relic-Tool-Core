@@ -95,6 +95,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if len(args) > 0 and self.parser.prog == args[0]:
             args = args[1:]  # allow prog to be first command
         try:
+            self._pre_parse()
             ns = self.parser.parse_args(args)
             return self._run(ns)
         except SystemExit as sys_exit:
@@ -107,9 +108,13 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         :returns: Nothing; the process is terminated
         :rtype: None
         """
+        self._pre_parse()
         ns = self.parser.parse_args()
         exit_code = self._run(ns)
         sys.exit(exit_code)
+
+    def _pre_parse(self):
+        pass
 
 
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
@@ -126,7 +131,11 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         parser = self._create_parser(parent)
         super().__init__(parser)
         self.subparsers = self._create_subparser_group(parser)
-        self._load()
+        self.__loaded = False
+
+    def _pre_parse(self):
+        if not self.__loaded:
+            self._load()
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
