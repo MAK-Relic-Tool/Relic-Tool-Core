@@ -1,0 +1,3 @@
+
+class MagicWord:
+    raise NotImplementedError
