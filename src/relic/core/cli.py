@@ -9,7 +9,7 @@ import sys
 from argparse import ArgumentParser, Namespace
 from typing import Optional, TYPE_CHECKING, Protocol, Any, Union
 
-import pkg_resources
+import importlib.metadata
 
 from relic.core.errors import UnboundCommandError
 
@@ -146,7 +146,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         return parser.add_subparsers(dest="command")  # type: ignore
 
     def _load(self) -> None:
-        for ep in pkg_resources.iter_entry_points(group=self.GROUP):
+        for ep in importlib.metadata.entry_points(group=self.GROUP):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
