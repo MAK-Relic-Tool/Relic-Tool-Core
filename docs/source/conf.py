@@ -24,6 +24,7 @@ author = 'Marcus Kertesz'
 # The full version, including alpha/beta/rc tags
 from relic.core import __version__ as package_version
 release = package_version
+print(release)
 
 # -- General configuration ---------------------------------------------------
 
@@ -50,7 +51,13 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = "sphinx_rtd_theme"
+
+html_theme_options = {
+    "logo_only": False,
+    "display_version":True,
+
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
