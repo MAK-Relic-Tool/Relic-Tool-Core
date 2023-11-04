@@ -88,4 +88,15 @@ class MismatchError(Generic[T], RelicToolError):
         return _print_mismatch(self.name, self.received, self.expected)
 
 
-__all__ = ["T", "MismatchError", "RelicToolError"]
+class MagicMismatchError(MismatchError[bytes]):
+    ...
+
+
+__all__ = [
+    "T",
+    "MismatchError",
+    "RelicToolError",
+    "CliError",
+    "MagicMismatchError",
+    "UnboundCommandError",
+]
