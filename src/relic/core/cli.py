@@ -39,6 +39,7 @@ class _SubParsersAction:  # pylint: disable= too-few-public-methods # typechecke
 class CliEntrypoint(Protocol):  # pylint: disable= too-few-public-methods
     """
     A protocol defining the expected entrypoint format when defining CLI Plugins
+
     """
 
     def __call__(self, parent: Optional[_SubParsersAction]) -> None:

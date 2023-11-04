@@ -1,5 +1,4 @@
-from collections import MutableMapping
-from typing import TypeVar, Protocol, Union, Dict, Optional, Iterable
+from typing import TypeVar, Protocol, Union, Dict, Optional, Iterable, MutableMapping
 
 from importlib.metadata import EntryPoint, entry_points
 
