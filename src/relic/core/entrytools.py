@@ -1,25 +1,33 @@
-from importlib.metadata import EntryPoint
 from collections import MutableMapping
 from typing import TypeVar, Protocol, Union, Dict, Optional, Iterable
 
-import pkg_resources
+from importlib.metadata import EntryPoint, entry_points
 
 from relic.core.errors import RelicToolError
 
 _TKey = TypeVar("_TKey")
 _TValue = TypeVar("_TValue")
 
+
 class KeyFunc(Protocol[_TKey]):
-    def __call__(self, key:_TKey) -> str:
+    def __call__(self, key: _TKey) -> str:
         raise NotImplementedError
+
 
 class AutoKeyFunc(Protocol[_TValue]):
-    def __call__(self, key:_TValue) -> Iterable[_TKey]:
+    def __call__(self, key: _TValue) -> Iterable[_TKey]:
         raise NotImplementedError
 
-class EntrypointRegistry(MutableMapping[Union[_TKey,str],_TValue]):
 
-    def __init__(self, entry_point_path: str, data:Optional[Dict[_TKey,_TValue]] = None, key_func:Optional[KeyFunc] = None, auto_key_func:Optional[AutoKeyFunc] = None, autoload:bool=True):
+class EntrypointRegistry(MutableMapping[Union[_TKey, str], _TValue]):
+    def __init__(
+        self,
+        entry_point_path: str,
+        data: Optional[Dict[_TKey, _TValue]] = None,
+        key_func: Optional[KeyFunc] = None,
+        auto_key_func: Optional[AutoKeyFunc] = None,
+        autoload: bool = True,
+    ):
         self._backing = {}
         if data is not None:
             self._backing.update(data)
@@ -29,7 +37,6 @@ class EntrypointRegistry(MutableMapping[Union[_TKey,str],_TValue]):
         if autoload:
             self.load_entrypoints()
         self._autoload = autoload
-
 
     def __setitem__(self, key, value):
         true_key = self._key2str(key)
@@ -70,7 +77,7 @@ class EntrypointRegistry(MutableMapping[Union[_TKey,str],_TValue]):
             new_data,
             self._key_func,
             self._auto_key_func,
-            self._autoload
+            self._autoload,
         )
 
     def __ror__(self, other):
@@ -102,30 +109,32 @@ class EntrypointRegistry(MutableMapping[Union[_TKey,str],_TValue]):
     def fromkeys(cls, iterable, value=None):
         raise NotImplementedError
 
-
-
-    def _key2str(self, key:_TKey) -> str:
+    def _key2str(self, key: _TKey) -> str:
         if self._key_func is not None:
             return self._key_func(key)
-        elif isinstance(key,str):
+        elif isinstance(key, str):
             return key
         else:
-            raise RelicToolError(f"Key '{key}' cannot be converted to an EntryPoint Key! No key_func was specified on creation, and _TKey is not a string!")
+            raise RelicToolError(
+                f"Key '{key}' cannot be converted to an EntryPoint Key! No key_func was specified on creation, and _TKey is not a string!"
+            )
 
-    def _val2keys(self, value:_TValue) -> Iterable[_TKey]:
+    def _val2keys(self, value: _TValue) -> Iterable[_TKey]:
         if self._auto_key_func is not None:
             return self._auto_key_func(value)
         else:
-            raise RelicToolError(f"Value '{value}' cannot automatically resolve it's key! No auto_key_func was specified on creation!")
+            raise RelicToolError(
+                f"Value '{value}' cannot automatically resolve it's key! No auto_key_func was specified on creation!"
+            )
 
     def load_entrypoints(self) -> None:
-        for ep in pkg_resources.iter_entry_points(group=self._ep_group):
-            ep:EntryPoint
+        for ep in entry_points().select(group=self._ep_group):
+            ep: EntryPoint
             ep_name: str = ep.name
             ep_func: _TValue = ep.load()
-            self._raw_register(ep_name,ep_func)
+            self._raw_register(ep_name, ep_func)
 
-    def _raw_register(self, key:str,value:_TValue):
+    def _raw_register(self, key: str, value: _TValue):
         self._backing[key] = value
 
     def register(self, key: _TKey, value: _TValue) -> None:
