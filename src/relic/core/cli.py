@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import sys
 from argparse import ArgumentParser, Namespace
+from importlib.metadata import entry_points
 from typing import Optional, TYPE_CHECKING, Protocol, Any, Union
-
-import importlib.metadata
 
 from relic.core.errors import UnboundCommandError
 
@@ -96,7 +95,6 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if len(args) > 0 and self.parser.prog == args[0]:
             args = args[1:]  # allow prog to be first command
         try:
-            self._pre_parse()
             ns = self.parser.parse_args(args)
             return self._run(ns)
         except SystemExit as sys_exit:
@@ -109,13 +107,9 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         :returns: Nothing; the process is terminated
         :rtype: None
         """
-        self._pre_parse()
         ns = self.parser.parse_args()
         exit_code = self._run(ns)
         sys.exit(exit_code)
-
-    def _pre_parse(self):
-        pass
 
 
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
@@ -124,6 +118,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
     def __init__(
         self,
         parent: Optional[_SubParsersAction] = None,
+        load_on_create: bool = True,
     ):
         if TYPE_CHECKING:
             self.subparsers = None
@@ -132,11 +127,23 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         parser = self._create_parser(parent)
         super().__init__(parser)
         self.subparsers = self._create_subparser_group(parser)
-        self.__loaded = False
+        if load_on_create:
+            self.load_plugins()
+        self.__loaded = load_on_create
 
-    def _pre_parse(self):
-        if not self.__loaded:
-            self._load()
+    def _preload(self) -> None:
+        if self.__loaded:
+            return
+        self.load_plugins()
+        self.__loaded = True
+
+    def run(self) -> None:
+        self._preload()
+        return super().run()
+
+    def run_with(self, *args: str) -> Union[str, int, None]:
+        self._preload()
+        return super().run_with(*args)
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
@@ -146,8 +153,9 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
     def _create_subparser_group(self, parser: ArgumentParser) -> _SubParsersAction:
         return parser.add_subparsers(dest="command")  # type: ignore
 
-    def _load(self) -> None:
-        for ep in importlib.metadata.entry_points(group=self.GROUP):
+    def load_plugins(self) -> None:
+        all_entry_points = entry_points()
+        for ep in all_entry_points.get(self.GROUP, []):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
@@ -179,7 +187,9 @@ class RelicCli(CliPluginGroup):  # pylint: disable= too-few-public-methods
         return command_group.add_parser("relic")
 
 
-CLI = RelicCli()
+CLI = RelicCli(
+    load_on_create=False
+)  # The root command line doesn't load plugins until it is called; all child plugins autoload as normal
 
 if __name__ == "__main__":
     CLI.run()

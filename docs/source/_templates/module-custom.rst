@@ -31,6 +31,7 @@
    .. rubric:: {{ _('Classes') }}
 
    .. autosummary::
+      :toctree:
       :template: class-custom.rst
    {% for item in classes %}
       {{ item }}

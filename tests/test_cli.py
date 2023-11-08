@@ -1,7 +1,7 @@
 import subprocess
 
 # Local testing requires running `pip install -e "."`
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 import io
 from typing import Sequence
 
@@ -13,22 +13,34 @@ class CommandTests:
         _args = ["relic", *args]
         cmd = subprocess.run(_args, capture_output=True, text=True)
         result = cmd.stdout
+        err = cmd.stderr
         status = cmd.returncode
+        print("STDOUT:")
         print(f"'{result}'")  # Visual Aid for Debugging
-        assert output in result
+        print()
+        print("STDERR:")
+        print(f"'{err}'")
         assert status == exit_code
+        assert output in result
 
     def test_run_with(self, args: Sequence[str], output: str, exit_code: int):
         from relic.core.cli import CLI
 
         with io.StringIO() as f:
-            with redirect_stdout(f):
-                status = CLI.run_with(*args)
-            f.seek(0)
-            result = f.read()
-            print(f"'{result}'")  # Visual Aid for Debugging
-            assert output in result
-            assert status == exit_code
+            with io.StringIO() as ferr:
+                with redirect_stdout(f):
+                    with redirect_stderr(ferr):
+                        status = CLI.run_with(*args)
+
+                        result = f.getvalue()
+                        err = ferr.getvalue()
+                        print("STDOUT:")
+                        print(f"'{result}'")  # Visual Aid for Debugging
+                        print()
+                        print("STDERR:")
+                        print(f"'{err}'")
+                        assert status == exit_code
+                        assert output in result
 
 
 _HELP = ["-h"], """usage: relic [-h] {} ...""", 0
