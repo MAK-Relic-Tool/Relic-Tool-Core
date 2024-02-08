@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser, Namespace
 from importlib.metadata import entry_points, EntryPoint
+from os.path import basename
 from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List, Dict, Sequence
 
 from relic.core.errors import UnboundCommandError
@@ -80,7 +81,9 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
             if cmd is None and argv is not None and len(argv) > 0:
                 cmd = argv[-1]  # get last part of command
         if cmd is None:
-            cmd = self.parser.prog
+            cmd = basename(
+                self.parser.prog
+            )  # linux will list the full path of the command
 
         if not hasattr(ns, "function"):
             raise UnboundCommandError(cmd)
@@ -99,11 +102,12 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         :returns: The status code or status message.
         :rtype: Union[str,int,None]
         """
+        argv = args
         if len(args) > 0 and self.parser.prog == args[0]:
             args = args[1:]  # allow prog to be first command
         try:
             ns = self.parser.parse_args(args)
-            return self._run(ns, args)
+            return self._run(ns, argv)
         except SystemExit as sys_exit:
             return sys_exit.code
 
@@ -150,6 +154,8 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         if load_on_create:
             self.load_plugins()
         self.__loaded = load_on_create
+        if self.parser.get_default("function") is None:
+            self.parser.set_defaults(function=self.command)
 
     def _preload(self) -> None:
         if self.__loaded:
