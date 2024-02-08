@@ -1,6 +1,7 @@
 """
 Tools for serializing binary data, wrapping binary streams, and lazily reading/writing binary data.
 """
+
 from __future__ import annotations
 
 import math
@@ -858,9 +859,9 @@ def chunk_copy(
         for i, chunk in enumerate(read_chunks(src, src_start, size, chunk_size)):
             chunk_offset = i * chunk_size
             chunk_size = len(chunk)
-            dest[
-                dst_start + chunk_offset : dst_start + chunk_offset + chunk_size
-            ] = chunk
+            dest[dst_start + chunk_offset : dst_start + chunk_offset + chunk_size] = (
+                chunk
+            )
     elif isinstance(dest, bytes):
         raise RelicToolError("Cannot chunk copy to a bytes object!")
     else:

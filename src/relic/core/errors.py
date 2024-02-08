@@ -1,6 +1,7 @@
 """
 Errors shared across all Relic Tools.
 """
+
 from typing import Any, Optional, TypeVar, Generic
 
 
