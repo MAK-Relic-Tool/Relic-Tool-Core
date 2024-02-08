@@ -65,3 +65,8 @@ ignore_missing_imports = true
 module = ["tests.*"]
 ignore_missing_imports = true
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["docs.*"]
+ignore_missing_imports = true
+ignore_errors = true
