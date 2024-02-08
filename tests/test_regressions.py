@@ -24,7 +24,6 @@ def test_import_module(submodule: str):
 errors__all__ = [
     "MismatchError",
     "RelicToolError",
-    "T",
 ]
 typeshed__all__ = [
     "TypeAlias",
