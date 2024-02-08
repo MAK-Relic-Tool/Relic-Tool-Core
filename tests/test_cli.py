@@ -50,5 +50,4 @@ _TEST_IDS = [" ".join(_[0]) for _ in _TESTS]
 
 
 @pytest.mark.parametrize(["args", "output", "exit_code"], _TESTS, ids=_TEST_IDS)
-class TestRelicCli(CommandTests):
-    ...
+class TestRelicCli(CommandTests): ...

@@ -3,6 +3,7 @@ Core files for implementing a Command Line Interface using Entrypoints
 
 
 """
+
 from __future__ import annotations
 
 import sys

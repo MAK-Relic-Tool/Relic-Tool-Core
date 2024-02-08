@@ -27,7 +27,7 @@ class MagicWord:
         expected: bytes,
         name: str,
         *,
-        err_cls: Type[MismatchError[bytes]] = MagicMismatchError
+        err_cls: Type[MismatchError[bytes]] = MagicMismatchError,
     ):
         self._expected = expected
         self._name = name
@@ -105,7 +105,7 @@ class MagicWord:
         advance: bool = False,
         *,
         name: Optional[str] = None,
-        err_cls: Optional[Type[MismatchError[bytes]]] = None
+        err_cls: Optional[Type[MismatchError[bytes]]] = None,
     ) -> None:
         """
         Validates that the magic word is the next value in the stream, raises an error if it is not.

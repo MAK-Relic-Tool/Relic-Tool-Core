@@ -5,8 +5,17 @@ repos:
     -   id: check-yaml
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
+    -   id: check-case-conflict
+    -   id: check-docstring-first
+    -   id: check-json
+    -   id: pretty-format-json
+    -   id: check-merge-conflict
+    -   id: check-toml
+    -   id: check-yaml
+    -   id: mixed-line-ending
+    -   id: requirements-txt-fixer
 -   repo: https://github.com/psf/black
-    rev: 22.10.0
+    rev: 24.1.1
     hooks:
     -   id: black
 -   repo: https://github.com/pre-commit/mirrors-mypy

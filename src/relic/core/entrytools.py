@@ -1,6 +1,7 @@
 """
 Tools for handling entrypoints via class-based registries
 """
+
 from __future__ import annotations
 
 from importlib.metadata import entry_points, EntryPoint, SelectableGroups
