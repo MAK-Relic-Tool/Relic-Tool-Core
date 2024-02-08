@@ -98,9 +98,9 @@ class MagicMismatchError(MismatchError[bytes]):
 
 
 __all__ = [
-    "MismatchError",
     "RelicToolError",
-    "CliError",
+    "MismatchError",
     "MagicMismatchError",
+    "CliError",
     "UnboundCommandError",
 ]

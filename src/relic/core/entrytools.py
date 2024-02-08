@@ -1,6 +1,9 @@
+"""
+Tools for handling entrypoints via class-based registries
+"""
 from __future__ import annotations
 
-from importlib.metadata import entry_points, EntryPoint
+from importlib.metadata import entry_points, EntryPoint, SelectableGroups
 from typing import (
     TypeVar,
     Protocol,
@@ -14,15 +17,19 @@ from typing import (
 
 from relic.core.errors import RelicToolError
 
-_TKey = TypeVar("_TKey")
-_TKey_contra = TypeVar("_TKey_contra", contravariant=True)
-_TKey_cov = TypeVar("_TKey_cov", covariant=True)
-_TValue = TypeVar("_TValue")
-_TValue_contra = TypeVar("_TValue_contra", contravariant=True)
-_TValue_cov = TypeVar("_TValue_cov", covariant=True)
+_TKey = TypeVar("_TKey")  # pylint: disable=invalid-name
+_TKey_contra = TypeVar(  # pylint: disable=invalid-name
+    "_TKey_contra", contravariant=True
+)
+_TKey_co = TypeVar("_TKey_co", covariant=True)  # pylint: disable=invalid-name
+_TValue = TypeVar("_TValue")  # pylint: disable=invalid-name
+_TValue_contra = TypeVar(  # pylint: disable=invalid-name
+    "_TValue_contra", contravariant=True
+)
+_TValue_co = TypeVar("_TValue_co", covariant=True)  # pylint: disable=invalid-name
 
 
-class KeyFunc(Protocol[_TKey_contra]):
+class KeyFunc(Protocol[_TKey_contra]):  # pylint: disable=too-few-public-methods
     """
     A function which converts an object to a string representation for an entrypoint
 
@@ -33,22 +40,26 @@ class KeyFunc(Protocol[_TKey_contra]):
     :returns: The string of teh object that will be used as an entrypoint
 
     """
+
     def __call__(self, key: _TKey_contra) -> str:
         raise NotImplementedError
 
 
-class AutoKeyFunc(Protocol[_TKey_cov, _TValue_contra]):
+class AutoKeyFunc(
+    Protocol[_TKey_co, _TValue_contra]
+):  # pylint: disable=too-few-public-methods
     """
     A function which converts an object to a list of key objects. At least one key should be returned.
 
     :param value: The value to convert to a sequence of keys
     :type value: _TValue_contra
 
-    :rtype: Iterable[_TKey_cov]
+    :rtype: Iterable[_TKey_co]
     :returns: A sequence of keys, with at least one key returned
 
     """
-    def __call__(self, value: _TValue_contra) -> Iterable[_TKey_cov]:
+
+    def __call__(self, value: _TValue_contra) -> Iterable[_TKey_co]:
         raise NotImplementedError
 
 
@@ -56,6 +67,7 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
     """
     A helper class allowing
     """
+
     def __init__(
         self,
         entry_point_path: str,
@@ -94,11 +106,9 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         self._run_autoload()
         return len(self._backing)
 
-    def __iter__(
-        self,
-    ) -> Iterable[
-        str
-    ]:  # type:ignore # Expects Iterable[Union[str,_TKey]]; but Iterable[str] acts identically (albeit with a different type)
+    def __iter__(self) -> Iterable[str]:  # type:ignore
+        # Expects Iterable[Union[str,_TKey]]; but Iterable[str] acts identically (albeit with a different type)
+
         self._run_autoload()
         return iter(self._backing)
 
@@ -118,7 +128,8 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
             return self._key_func(key)
 
         raise RelicToolError(
-            f"Key '{key}' cannot be converted to an EntryPoint Key! No key_func was specified on creation, and _TKey is not a string!"
+            f"Key '{key}' cannot be converted to an EntryPoint Key!"
+            f" No key_func was specified on creation, and _TKey is not a string!"
         )
 
     def _val2keys(self, value: _TValue) -> Iterable[_TKey]:
@@ -129,7 +140,10 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         )
 
     def load_entrypoints(self) -> None:
-        all_entrypoints: Dict[str, List[EntryPoint]] = entry_points()
+        """
+        Load all entrypoints from the group specified in __init__
+        """
+        all_entrypoints: SelectableGroups = entry_points()
         group_entrypoints: List[EntryPoint] = all_entrypoints.get(self._ep_group, [])
         for ep in group_entrypoints:
             ep_name: str = ep.name
@@ -153,7 +167,8 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
 
     def auto_register(self, value: _TValue) -> None:
         """
-        Automatically add the value to the entrypoint registry, using keys automatically determined from the auto_key_func.
+        Automatically add the value to the entrypoint registry,
+            using keys automatically determined from the auto_key_func.
 
         :param value: The value to register
         :type value: _TValue
@@ -161,3 +176,6 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         keys = self._val2keys(value)
         for key in keys:
             self.register(key, value)
+
+
+__all__ = ["KeyFunc", "AutoKeyFunc", "EntrypointRegistry"]

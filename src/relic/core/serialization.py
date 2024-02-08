@@ -1,3 +1,7 @@
+"""
+Module containing tools for serialization.
+"""
+
 from typing import BinaryIO, Optional, Type, Any
 
 from relic.core.errors import MismatchError, MagicMismatchError
@@ -64,6 +68,18 @@ class MagicWord:
             buffer = stream.read(size)
 
         return buffer
+
+    def write(self, stream: BinaryIO) -> int:
+        """
+        Writes the magic word to the stream.
+
+        :param stream: The stream to write to
+        :type stream: BinaryIO
+
+        :rtype: int
+        :returns: The number of bytes written.
+        """
+        return stream.write(self._expected)
 
     def check(self, stream: BinaryIO, advance: bool = False) -> bool:
         """

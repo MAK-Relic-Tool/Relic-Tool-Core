@@ -13,16 +13,17 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath('../../src'))
+sys.path.insert(0, os.path.abspath("../../src"))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Relic Game Tool'
-copyright = '2022, Marcus Kertesz'
-author = 'Marcus Kertesz'
+project = "Relic Game Tool"
+copyright = "2022, Marcus Kertesz"
+author = "Marcus Kertesz"
 
 # The full version, including alpha/beta/rc tags
 from relic.core import __version__ as package_version
+
 release = package_version
 print(release)
 
@@ -33,13 +34,14 @@ print(release)
 # ones.
 
 extensions = [
-    'sphinx.ext.autodoc',  # Core library for html generation from docstrings
-    'sphinx.ext.autosummary',  # Create neat summary tables
+    "sphinx.ext.autodoc",  # Core library for html generation from docstrings
+    "sphinx.ext.autosummary",  # Create neat summary tables
+    "sphinxcontrib.spelling",
 ]
 autosummary_generate = True  # Turn on sphinx.ext.autosummary
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -55,11 +57,10 @@ html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
     "logo_only": False,
-    "display_version":True,
-
+    "display_version": True,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]

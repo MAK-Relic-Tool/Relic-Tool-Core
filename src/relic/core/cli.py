@@ -113,6 +113,19 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
 
 
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
+    """
+    Create a Command Line Plugin which creates a command group which can autoload child plugins.
+
+    :param parent: The parent parser group, that this command line will attach to.
+        If None, the command line is treated as the root command line.
+    :type parent: Optional[_SubParsersAction], optional
+
+    :param load_on_create: Whether further plugins are loaded on creation, by default, this is True.
+    :type load_on_create: bool, optional
+
+    :note: The class exposes a class variable 'GROUP', which is used to automatically load child plugins.
+    """
+
     GROUP: str = None  # type: ignore
 
     def __init__(
@@ -154,13 +167,26 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         return parser.add_subparsers(dest="command")  # type: ignore
 
     def load_plugins(self) -> None:
+        """
+        Load all entrypoints using the group specified by the class-variable GROUP
+        """
+
         all_entry_points = entry_points()
-        for ep in all_entry_points.get(self.GROUP, []):
+        for ep in all_entry_points.select(group=self.GROUP):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
 
 class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
+    """
+    Create a Command Line Plugin, which can be autoloaded by a plugin group.
+
+    :param parent: The parent parser group, that this command line will attach to.
+        If None, the command line is treated as the root command line.
+        By default, None
+    :type parent: Optional[_SubParsersActions]
+    """
+
     def __init__(self, parent: Optional[_SubParsersAction] = None):
         parser = self._create_parser(parent)
         super().__init__(parser)
@@ -173,10 +199,26 @@ class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
         raise NotImplementedError
 
     def command(self, ns: Namespace) -> Optional[int]:
+        """
+        Run the command line program
+
+        :param ns: The arguments passed in, wrapped in a namespace object
+        :type ns: Namespace
+
+        :returns: The exit status code, None implies a status code of 0
+        :rtype: Optional[int]
+        """
         raise NotImplementedError
 
 
 class RelicCli(CliPluginGroup):  # pylint: disable= too-few-public-methods
+    """
+    Creates the root command line interface for the Relic-Tool
+
+    :note: Can be run internally from the library via the run_with function.
+    :note: To add a plugin to the tool; add an entrypoint under the 'relic.cli' group.
+    """
+
     GROUP = "relic.cli"
 
     def _create_parser(

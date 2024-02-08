@@ -1,3 +1,6 @@
+"""
+Tools for serializing binary data, wrapping binary streams, and lazily reading/writing binary data.
+"""
 from __future__ import annotations
 
 import math
@@ -92,65 +95,100 @@ class BinaryWrapper(BinaryIO):
 
     @property
     def name(self) -> str:
+        """
+        The name of the binary wrapper.
+
+        This will be the name specified in __init__, if given.
+        Otherwise, if the underlying handle has a name, the handle's name will be used.
+        If neither object has a name, the string representation of the underlying handle is returned.
+
+        :returns: The name of the binary wrapper.
+        :rtype: str
+        """
         return self._name or (
             self._handle.name if hasattr(self._handle, "name") else str(self._handle)
         )
 
     def close(self) -> None:
+        """
+        Closes this object. The underlying file stream is also closed if `close_parent` was True in `__init__`.
+        """
         if self._close_parent:
             self._handle.close()
         self._closed = True
 
     @property
     def closed(self) -> bool:
+        """
+        Whether this stream is closed.
+
+        If the underlying stream is already closed, this will return True, even if `closed` was not called.
+        """
         return self._handle.closed or self._closed
 
     def fileno(self) -> int:
+        "`fileno() on python.org <https://docs.python.org/library/typing.html#typing.IO.fileno>`_"
+
         return self._handle.fileno()
 
     def flush(self) -> None:
+        "`flush() on python.org <https://docs.python.org/library/typing.html#typing.IO.flush>`_"
         return self._handle.flush()
 
     def isatty(self) -> bool:
+        "`isatty() on python.org <https://docs.python.org/library/typing.html#typing.IO.isatty>`_"
         return self._handle.isatty()
 
     def read(self, __n: int = -1) -> bytes:
+        "`read() on python.org <https://docs.python.org/library/typing.html#typing.IO.read>`_"
         return self._handle.read(__n)
 
     def readable(self) -> bool:
+        "`readable() on python.org <https://docs.python.org/library/typing.html#typing.IO.readable>`_"
         return self._handle.readable()
 
     def readline(self, __limit: int = -1) -> bytes:
+        "`readline() on python.org <https://docs.python.org/library/typing.html#typing.IO.readline>`_"
         return self._handle.readline(__limit)
 
     def readlines(self, __hint: int = -1) -> list[bytes]:
+        "`readlines() on python.org <https://docs.python.org/library/typing.html#typing.IO.readlines>`_"
         return self._handle.readlines(__hint)
 
     def seek(self, __offset: int, __whence: int = 0) -> int:
+        "`seek() on python.org <https://docs.python.org/library/typing.html#typing.IO.seek>`_"
         return self._handle.seek(__offset, __whence)
 
     def seekable(self) -> bool:
+        "`seekable() on python.org <https://docs.python.org/library/typing.html#typing.IO.seekable>`_"
         return self._handle.seekable()
 
     def tell(self) -> int:
+        "`tell() on python.org <https://docs.python.org/library/typing.html#typing.IO.tell>`_"
         return self._handle.tell()
 
     def truncate(self, __size: Optional[int] = None) -> int:
+        "`truncate() on python.org <https://docs.python.org/library/typing.html#typing.IO.truncate>`_"
         return self._handle.truncate(__size)
 
     def writable(self) -> bool:
+        "`writable() on python.org <https://docs.python.org/library/typing.html#typing.IO.writable>`_"
         return self._handle.writable()
 
     def write(self, __s: Union[bytes, Buffer]) -> int:
+        "`write() on python.org <https://docs.python.org/library/typing.html#typing.IO.write>`_"
         return self._handle.write(__s)
 
     def writelines(self, __lines: Iterable[Union[bytes, Buffer]]) -> None:
+        "`writelines() on python.org <https://docs.python.org/library/typing.html#typing.IO.writelines>`_"
         return self._handle.writelines(__lines)
 
     def __next__(self) -> bytes:
+        "`__next__() on python.org <https://docs.python.org/library/typing.html#typing.IO.__next__>`_"
         return self._handle.__next__()
 
     def __iter__(self) -> Iterator[bytes]:
+        "`__iter__() on python.org <https://docs.python.org/library/typing.html#typing.IO.__iter__>`_"
         return self._handle.__iter__()
 
     def __exit__(
@@ -159,12 +197,26 @@ class BinaryWrapper(BinaryIO):
         __value: BaseException | None,
         __traceback: TracebackType | None,
     ) -> None:
+        "`__exit__() on python.org <https://docs.python.org/library/typing.html#typing.IO.__exit__>`_"
         # TODO, this may fail to close the file if an err is thrown
         if self._close_parent:
             self._handle.__exit__(__t, __value, __traceback)
 
     @property
     def mode(self) -> str:
+        """
+        The Mode of the underlying stream; if the underlying stream does not specify a mode, it is determined as follow.
+        If the underlying stream is readable and writeable, 'w+b' is returned.
+        If the underlying stream is only readable, 'rb' is returned.
+        If the underlying stream is only writable, 'wb' is returned.
+        Otherwise, raises a RelicToolError.
+
+        :raises RelicToolError: The mode could not be determined automatically.
+
+        :returns: The mode the stream was created with.
+        :rtype: str
+        """
+
         if hasattr(self._handle, "mode"):
             return self._handle.mode
 
@@ -179,7 +231,8 @@ class BinaryWrapper(BinaryIO):
             return r"wb"
 
         raise RelicToolError(
-            "Binary Wrapper could not determine mode for object that is not readable or writeable; the IO object may not be supported."
+            "Binary Wrapper could not determine mode for object that is not readable or writeable;"
+            " the IO object may not be supported."
         )
 
 
@@ -275,7 +328,7 @@ class BinaryWindow(BinaryWrapper):
 
 class _CStringOps:
     """
-    Provides utility functions for serializing C-String Buffers
+    Provides utility functions for serializing C-String Buffers.
     """
 
     def __init__(self, serialzer: BinarySerializer):
@@ -328,7 +381,8 @@ class _CStringOps:
                 pad_count = (size - len(buffer)) / len(pad_buffer)
                 if pad_count != int(pad_count):
                     raise RelicToolError(
-                        f"Trying to pad '{buffer!r}' ({len(buffer)}) to '{size}' bytes, but padding '{pad_buffer!r}' ({len(pad_buffer)}) is not a multiple of '{size-len(buffer)}' !"
+                        f"Trying to pad '{buffer!r}' ({len(buffer)}) to '{size}' bytes,"
+                        f" but padding '{pad_buffer!r}' ({len(pad_buffer)}) is not a multiple of '{size-len(buffer)}' !"
                     )
                 buffer = b"".join([buffer, pad_buffer * int(pad_count)])
             elif len(buffer) != size:
@@ -356,7 +410,8 @@ class _IntOps:
     ) -> int:
         if size is None:
             raise RelicToolError(
-                "Cannot dynamically determine size of the int buffer; please specify the size manually or use a sized int reader"
+                "Cannot dynamically determine size of the int buffer;"
+                " please specify the size manually or use a sized int reader"
             )
         buffer = self._serializer.read_bytes(offset, size, exact_size=True)
         result = self.unpack_int(
@@ -375,7 +430,8 @@ class _IntOps:
     ) -> int:
         if size is None:
             raise RelicToolError(
-                "Cannot dynamically determine size of the int buffer; please specify the size manually or use a sized int writer"
+                "Cannot dynamically determine size of the int buffer;"
+                " please specify the size manually or use a sized int writer"
             )
         buffer = self.pack_int(value, byteorder=byteorder, length=size, signed=signed)
         return self._serializer.write_bytes(buffer, offset, size)
@@ -413,11 +469,14 @@ class _SizedIntOps(_IntOps):
         self._size = size
         self._signed = signed
 
-    def _validate_args(self, size: Optional[int], signed: bool) -> None:
+    def _validate_args(
+        self, size: Optional[int], signed: Optional[bool] = None
+    ) -> None:
         received_size = size if size is not None else self._size
+        received_signed = signed if signed is not None else self._signed
 
         expected = f"{'' if self._signed else 'U'}Int-{self._size * 8}"
-        received = f"{'' if signed else 'U'}Int-{received_size * 8}"
+        received = f"{'' if received_signed else 'U'}Int-{received_size * 8}"
         if expected != received:
             raise MismatchError("Int Type", received, expected)
 
@@ -427,7 +486,7 @@ class _SizedIntOps(_IntOps):
         size: Optional[int] = None,
         *,
         byteorder: Literal["little", "big"] = "little",
-        signed: bool = False,
+        signed: Optional[bool] = None,
     ) -> int:
         self._validate_args(size, signed)
         buffer = self._serializer.read_bytes(offset, self._size, exact_size=True)
@@ -441,7 +500,7 @@ class _SizedIntOps(_IntOps):
         size: Optional[int] = None,
         *,
         byteorder: Literal["little", "big"] = "little",
-        signed: bool = False,
+        signed: Optional[bool] = None,
     ) -> int:
         self._validate_args(size, signed)
         buffer = self.pack(
@@ -463,23 +522,43 @@ class _SizedIntOps(_IntOps):
 
     def unpack(
         self,
-        b: bytes,
+        data: bytes,
         length: Optional[int] = None,
         byteorder: Literal["little", "big"] = "little",
-        signed: bool = False,
+        signed: Optional[bool] = None,
     ) -> int:
         self._validate_args(length, signed)
-        return int.from_bytes(b, byteorder=byteorder, signed=self._signed)
+        return int.from_bytes(data, byteorder=byteorder, signed=self._signed)
 
     def pack(
         self,
-        v: int,
+        value: int,
         length: Optional[int] = None,
         byteorder: Literal["little", "big"] = "little",
-        signed: bool = False,
+        signed: Optional[bool] = None,
     ) -> bytes:
+        """
+        Pack an integer into a C-like binary buffer
+
+        :param value: The value to pack.
+        :type value: int
+
+        :param length: The length in bytes that the value should be packed into.
+            Raises an error if it is not None and does not match the class definition.
+        :type length: int, optional
+
+        :param byteorder: The byteorder or 'endianness' of the buffer. By default, "little"
+        :type byteorder: Literal["little", "big"], optional
+
+        :param signed: Whether the integer should be packed as a signed or unsigned integer.
+            Raises an error if it is not None and does not match the class definition.
+
+        :raises MismatchError: The length or signed parameter does not match the class's size/signed value(s).
+
+        """
+
         self._validate_args(length, signed)
-        return v.to_bytes(self._size, byteorder=byteorder, signed=self._signed)
+        return value.to_bytes(self._size, byteorder=byteorder, signed=self._signed)
 
 
 class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attributes
@@ -517,10 +596,30 @@ class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attri
 
     @property
     def stream(self) -> BinaryIO:
+        """
+        Get the actual stream instance to use as the underlying stream
+        """
         return get_proxy(self._proxy)
 
     # Bytes
     def read_bytes(self, offset: int, size: int, *, exact_size: bool = True) -> bytes:
+        """
+        Read bytes from the underlying stream.
+
+        :param offset: The offset to read from the underlying stream.
+        :type offset: int
+
+        :param size: The number of bytes to read.
+        :type size: int
+
+        :param exact_size: If True, the number of bytes read from the stream must match the size parameter.
+            By default, True.
+        :type exact_size: bool, optional
+
+        :rtype: bytes
+        :returns: The bytes read from the underlying stream
+        """
+
         def _read() -> bytes:
             self.stream.seek(offset)
             b = self.stream.read(size)
@@ -537,16 +636,31 @@ class BinarySerializer(BinaryProxy):  # pylint: disable= too-many-instance-attri
 
         return _read()
 
-    def write_bytes(self, b: bytes, offset: int, size: Optional[int] = None) -> int:
-        if size is not None and len(b) != size:
-            raise MismatchError("Write Mismatch", len(b), size)
+    def write_bytes(self, data: bytes, offset: int, size: Optional[int] = None) -> int:
+        """
+        Writes a byte buffer to the underlying stream.
+
+        :param data: The byte buffer to write to the stream.
+        :type data: bytes
+
+        :param offset: The position from the start of the underlying stream to write to
+        :type offset: int
+
+        :param size: The expected size of the byte-buffer. By default, none.
+        :type size: Optional[int], optional
+
+        :raises MismatchError: The data buffer did not match the given size.
+        """
+        if size is not None and len(data) != size:
+            raise MismatchError("Write Mismatch", len(data), size)
         self.stream.seek(offset)
-        return self.stream.write(b)
+        return self.stream.write(data)
 
 
 class BinaryProxySerializer(BinaryProxy):  # pylint: disable= R0903
     """
-    A Mixin-like class which allows the class to be treated as a BinaryIO via proxying, and automatically creates a serializer to be used to read/write data lazily
+    A Mixin-like class which allows the class to be treated as a BinaryIO via proxying,
+     and automatically creates a serializer to be used to read/write data lazily
     """
 
     def __init__(
@@ -560,6 +674,10 @@ class BinaryProxySerializer(BinaryProxy):  # pylint: disable= R0903
 
 
 class ZLibFileReader(BinaryWrapper):
+    """
+    A wrapper which lazily reads a Z-Lib compressed file.
+    """
+
     def __init__(
         self, parent: Union[BinaryIO, BinaryProxy], *, chunk_size: int = 16 * _KIBIBYTE
     ):
