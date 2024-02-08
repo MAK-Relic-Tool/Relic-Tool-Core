@@ -6,12 +6,14 @@ Core files for implementing a Command Line Interface using Entrypoints
 
 from __future__ import annotations
 
+import importlib.metadata
 import sys
 from argparse import ArgumentParser, Namespace
-from importlib.metadata import entry_points
-from typing import Optional, TYPE_CHECKING, Protocol, Any, Union
+from importlib.metadata import entry_points, EntryPoint
+from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List
 
 from relic.core.errors import UnboundCommandError
+import sys
 
 
 # Circumvent mypy/pylint shenanigans ~
@@ -172,8 +174,8 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        all_entry_points = entry_points()
-        for ep in all_entry_points.select(group=self.GROUP):
+        all_entry_points: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore
+        for ep in all_entry_points.get(self.GROUP, []):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 

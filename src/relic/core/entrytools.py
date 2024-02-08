@@ -4,7 +4,7 @@ Tools for handling entrypoints via class-based registries
 
 from __future__ import annotations
 
-from importlib.metadata import entry_points, EntryPoint, SelectableGroups
+from importlib.metadata import entry_points, EntryPoint
 from typing import (
     TypeVar,
     Protocol,
@@ -144,7 +144,7 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         """
         Load all entrypoints from the group specified in __init__
         """
-        all_entrypoints: SelectableGroups = entry_points()
+        all_entrypoints: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore
         group_entrypoints: List[EntryPoint] = all_entrypoints.get(self._ep_group, [])
         for ep in group_entrypoints:
             ep_name: str = ep.name
