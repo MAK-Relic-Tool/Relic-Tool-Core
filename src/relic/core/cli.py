@@ -6,14 +6,12 @@ Core files for implementing a Command Line Interface using Entrypoints
 
 from __future__ import annotations
 
-import importlib.metadata
 import sys
 from argparse import ArgumentParser, Namespace
 from importlib.metadata import entry_points, EntryPoint
-from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List
+from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List, Dict
 
 from relic.core.errors import UnboundCommandError
-import sys
 
 
 # Circumvent mypy/pylint shenanigans ~

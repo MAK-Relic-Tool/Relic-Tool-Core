@@ -144,7 +144,7 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         """
         Load all entrypoints from the group specified in __init__
         """
-        all_entrypoints: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore
+        all_entrypoints: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore[assignment, unused-ignore]
         group_entrypoints: List[EntryPoint] = all_entrypoints.get(self._ep_group, [])
         for ep in group_entrypoints:
             ep_name: str = ep.name
