@@ -66,5 +66,3 @@ Click the link above, to visit the Issue Tracker
 
 ## Disclaimer
 Not affiliated with Sega, Relic Entertainment, or THQ.
-
-
