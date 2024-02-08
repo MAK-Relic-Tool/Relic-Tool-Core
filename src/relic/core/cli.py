@@ -172,7 +172,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        all_entry_points: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore
+        all_entry_points: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore[assignment, unused-ignore]
         for ep in all_entry_points.get(self.GROUP, []):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
