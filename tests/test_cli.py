@@ -14,8 +14,8 @@ class CommandTests:
         result = cmd.stdout if stdout else cmd.stderr
         status = cmd.returncode
         print(f"'{result}'")  # Visual Aid for Debugging
-        assert output in result
         assert status == exit_code
+        assert output in result
 
     def test_run_with(
         self, args: Sequence[str], output: str, exit_code: int, stdout: bool
@@ -49,5 +49,4 @@ _TEST_IDS = [" ".join(str(__) for __ in _[0]) for _ in _TESTS]
 @pytest.mark.parametrize(
     ["args", "output", "exit_code", "stdout"], _TESTS, ids=_TEST_IDS
 )
-class TestRelicCli(CommandTests):
-    ...
+class TestRelicCli(CommandTests): ...

@@ -7,7 +7,7 @@ on:
     branches: [ main, staging ]
     paths:
       - 'src/relic/**'
-      - '.github/workflows/mypy.yml'  
+      - '.github/workflows/mypy.yml'
       - 'mypy.ini'
   pull_request:
     branches: [ main, staging ]
@@ -21,3 +21,4 @@ jobs:
     uses: MAK-Relic-Tool/Workflows/.github/workflows/mypy.yml@main
     with:
       package: "relic.core"
+      mypy-config: "pyproject.toml"

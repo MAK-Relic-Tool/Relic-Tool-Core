@@ -1,6 +1,7 @@
 """
 Errors shared across all Relic Tools.
 """
+
 from typing import Any, Optional, TypeVar, Generic
 
 
@@ -38,22 +39,22 @@ def _print_mismatch(name: str, received: Optional[Any], expected: Optional[Any])
     return msg + "!"
 
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
 
 class RelicToolError(Exception):
     """
-    Marks an Error as a RelicToolError.
-    Does nothing special.
-    All non-standard errors should inherit from this class.
+    An error was raised by the relic tool.
+
+    All custom errors in this library and it's plugins should inherit from this class.
     """
 
 
 class CliError(RelicToolError):
     """
-    Marks an Error as a Command Line Error.
-    Does nothing special.
-    All command line errors should inherit from this class.
+    An error was raised by the command line interface.
+
+    All command-line errors in this library and it's plugins should inherit from this class.
     """
 
 
@@ -61,7 +62,8 @@ class UnboundCommandError(CliError):
     """
     A command was defined in the CLI, but its function was not bound.
 
-    If a command is meant to do nothing, a 'do-nothing' function should be bound instead.
+    :param name: The name of the command that was not bound.
+    :type name: str
     """
 
     def __init__(self, name: str):
@@ -71,13 +73,13 @@ class UnboundCommandError(CliError):
         return f"The '{self._name}' command was defined, but not bound to a function."
 
 
-class MismatchError(Generic[T], RelicToolError):
+class MismatchError(Generic[_T], RelicToolError):
     """
-    An error where an expected value did not match the actual received value.
+    An error where a received value did not match the expected value.
     """
 
     def __init__(
-        self, name: str, received: Optional[T] = None, expected: Optional[T] = None
+        self, name: str, received: Optional[_T] = None, expected: Optional[_T] = None
     ):
         super().__init__()
         self.name = name
@@ -88,4 +90,18 @@ class MismatchError(Generic[T], RelicToolError):
         return _print_mismatch(self.name, self.received, self.expected)
 
 
-__all__ = ["T", "MismatchError", "RelicToolError"]
+class MagicMismatchError(MismatchError[bytes]):
+    """
+    An error where a file's magic word did not match the expected value.
+
+    This typically means the file is empty, corrupted, or is not the specified file format.
+    """
+
+
+__all__ = [
+    "RelicToolError",
+    "MismatchError",
+    "MagicMismatchError",
+    "CliError",
+    "UnboundCommandError",
+]
