@@ -24,13 +24,14 @@ from typing import (
     runtime_checkable,
     Generator,
     List,
+    TypeVar,
+    Generic,
 )
 
 from relic.core.errors import RelicToolError, MismatchError
 from relic.core.typeshed import Buffer
 
 ByteOrder = Literal["big", "little"]
-
 
 _KIBIBYTE = 1024
 
@@ -383,7 +384,7 @@ class _CStringOps:
                 if pad_count != int(pad_count):
                     raise RelicToolError(
                         f"Trying to pad '{buffer!r}' ({len(buffer)}) to '{size}' bytes,"
-                        f" but padding '{pad_buffer!r}' ({len(pad_buffer)}) is not a multiple of '{size-len(buffer)}' !"
+                        f" but padding '{pad_buffer!r}' ({len(pad_buffer)}) is not a multiple of '{size - len(buffer)}' !"
                     )
                 buffer = b"".join([buffer, pad_buffer * int(pad_count)])
             elif len(buffer) != size:
@@ -869,3 +870,123 @@ def chunk_copy(
             dest.seek(dst_start)
         for chunk in read_chunks(src, src_start, size, chunk_size):
             dest.write(chunk)
+
+
+_T = TypeVar("_T")
+
+
+class BinaryConverter(Protocol[_T]):
+    def bytes2value(self, b: bytes) -> _T:
+        raise NotImplementedError
+
+    def value2bytes(self, v: _T) -> bytes:
+        raise NotImplementedError
+
+
+class ByteConverter(BinaryConverter[bytes]):
+    @classmethod
+    def bytes2value(cls, b: bytes) -> bytes:
+        return b
+
+    @classmethod
+    def value2bytes(cls, v: bytes) -> bytes:
+        return v
+
+
+class IntConverter(BinaryConverter[int]):
+    def __init__(
+        self,
+        length: int,
+        byteorder: Literal["little", "big"] = "little",
+        signed: bool = False,
+    ):
+        self._length = length
+        self._byteorder = byteorder
+        self._signed = signed
+
+    def bytes2value(self, b: bytes) -> int:
+        if len(b) != self._length:
+            raise RelicToolError("IntConverter Error")
+        return int.from_bytes(b, self._byteorder, signed=self._signed)
+
+    def value2bytes(self, v: int) -> bytes:
+        return int.to_bytes(v, self._length, self._byteorder, signed=self._signed)
+
+
+class CStringConverter(BinaryConverter[str]):
+    def __init__(
+        self,
+        encoding: str = "ascii",
+        padding: Optional[bytes] = None,
+        size: Optional[int] = None,
+    ):
+        self._encoding = encoding
+        self._padding = padding
+        self._size = size
+
+    def bytes2value(self, b: bytes) -> str:
+        if self._size is not None and len(b) == self._size:
+            raise RelicToolError("CString Converter")
+
+        if self._padding is not None:
+            unpadded = b.rstrip(self._padding)
+        else:
+            unpadded = b
+
+        decoded = unpadded.decode(self._encoding)
+
+        return decoded
+
+    def value2bytes(self, v: str) -> bytes:
+        encoded = v.encode(self._encoding)
+
+        if self._size is not None and len(encoded) != self._size:
+            if self._padding is None:
+                raise RelicToolError("CString Converter")
+            pad_size = (self._size - len(encoded)) / len(self._padding)
+            if int(pad_size) != pad_size:
+                raise RelicToolError("CString Converter")
+            padding = self._padding * int(pad_size)
+        else:
+            padding = b""
+
+        padded = encoded + padding
+        return padded
+
+
+class BinaryProperty(Generic[_T]):
+    def __init__(self, start: int, size: int, converter: BinaryConverter[_T]):
+        self._start = start
+        self._size = size
+        self._converter = converter
+
+    def __get__(self, instance: Any, owner: Any) -> _T:
+        serializer = instance._serializer
+        buffer = self._read(serializer)
+        value = self._converter.bytes2value(buffer)
+        return value
+
+    def __set__(self, instance: Any, value: _T) -> None:
+        serializer = instance._serializer
+        buffer = self._converter.value2bytes(value)
+        self._write(serializer, buffer)
+
+    @contextmanager
+    def _window(self, stream: BinaryIO) -> Generator[BinaryIO, None, None]:
+        yield BinaryWindow(stream, self._start, self._size)
+
+    def _read(self, stream: BinaryIO) -> bytes:
+        with self._window(stream) as window:
+            return window.read()
+
+    def _write(self, stream: BinaryIO, value: bytes) -> None:
+        with self._window(stream) as window:
+            window.write(value)
+
+
+class ConstProperty(Generic[_T]):
+    def __init__(self, value: _T):
+        self._value = value
+
+    def __get__(self, instance: Any, owner: Any) -> _T:
+        return self._value
