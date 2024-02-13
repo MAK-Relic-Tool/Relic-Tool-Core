@@ -893,6 +893,23 @@ class ByteConverter(BinaryConverter[bytes]):
         return v
 
 
+class RelicSerializationError(RelicToolError): ...
+
+
+class RelicSerializationSizeError(RelicSerializationError):
+    def __init__(
+        self,
+        msg: str = "Size Mismatch",
+        size: Optional[int] = None,
+        expected: Optional[int] = None,
+        payload: Optional[str] = None,
+    ):
+        self.size = (size,)
+        self.expected = expected
+        self.payload = payload
+        super().__init__(msg)
+
+
 class IntConverter(BinaryConverter[int]):
     def __init__(
         self,
@@ -906,7 +923,9 @@ class IntConverter(BinaryConverter[int]):
 
     def bytes2value(self, b: bytes) -> int:
         if len(b) != self._length:
-            raise RelicToolError("IntConverter Error")
+            raise RelicSerializationSizeError(
+                f"`{b!r}` expected '{self._length}' bytes, got '{len(b)}' bytes"
+            )
         return int.from_bytes(b, self._byteorder, signed=self._signed)
 
     def value2bytes(self, v: int) -> bytes:
@@ -917,7 +936,7 @@ class CStringConverter(BinaryConverter[str]):
     def __init__(
         self,
         encoding: str = "ascii",
-        padding: Optional[bytes] = None,
+        padding: Optional[str] = None,
         size: Optional[int] = None,
     ):
         self._encoding = encoding
@@ -925,17 +944,18 @@ class CStringConverter(BinaryConverter[str]):
         self._size = size
 
     def bytes2value(self, b: bytes) -> str:
-        if self._size is not None and len(b) == self._size:
-            raise RelicToolError("CString Converter")
+        if self._size is not None and len(b) != self._size:
+            raise RelicSerializationSizeError(
+                f"`{b!r}` expected '{self._size}' bytes, got '{len(b)}' bytes"
+            )
+        decoded = b.decode(self._encoding)
 
         if self._padding is not None:
-            unpadded = b.rstrip(self._padding)
+            unpadded = decoded.rstrip(self._padding)
         else:
-            unpadded = b
+            unpadded = decoded
 
-        decoded = unpadded.decode(self._encoding)
-
-        return decoded
+        return unpadded
 
     def value2bytes(self, v: str) -> bytes:
         encoded = v.encode(self._encoding)
@@ -943,10 +963,12 @@ class CStringConverter(BinaryConverter[str]):
         if self._size is not None and len(encoded) != self._size:
             if self._padding is None:
                 raise RelicToolError("CString Converter")
-            pad_size = (self._size - len(encoded)) / len(self._padding)
+
+            _padding = self._padding.encode(self._encoding)
+            pad_size = (self._size - len(encoded)) / len(_padding)
             if int(pad_size) != pad_size:
                 raise RelicToolError("CString Converter")
-            padding = self._padding * int(pad_size)
+            padding = _padding * int(pad_size)
         else:
             padding = b""
 
@@ -985,8 +1007,12 @@ class BinaryProperty(Generic[_T]):
 
 
 class ConstProperty(Generic[_T]):
-    def __init__(self, value: _T):
+    def __init__(self, value: _T, err: Exception):
         self._value = value
+        self._err = err
 
     def __get__(self, instance: Any, owner: Any) -> _T:
         return self._value
+
+    def __set__(self, instance: Any, value: _T) -> None:
+        raise self._err
