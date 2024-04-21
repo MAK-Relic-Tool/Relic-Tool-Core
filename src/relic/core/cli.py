@@ -7,12 +7,62 @@ Core files for implementing a Command Line Interface using Entrypoints
 from __future__ import annotations
 
 import sys
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, Namespace, ArgumentError, Action
 from importlib.metadata import entry_points, EntryPoint
 from os.path import basename
-from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List, Dict, Sequence
+from typing import (
+    Optional,
+    TYPE_CHECKING,
+    Protocol,
+    Any,
+    Union,
+    List,
+    Dict,
+    Sequence,
+    NoReturn,
+)
 
-from relic.core.errors import UnboundCommandError
+from relic.core.errors import UnboundCommandError, RelicToolError
+
+
+class RelicArgParserError(Exception): ...
+
+
+def _print_error(parser: ArgumentParser, message: str) -> None:
+    from gettext import gettext as _
+
+    parser.print_usage(sys.stderr)
+    args = {"prog": parser.prog, "message": message}
+    parser.exit(2, _("%(prog)s: error: %(message)s\n") % args)
+
+
+class RelicArgParser(ArgumentParser):
+    def _get_action_from_name(self, name: str | None) -> Action | None:
+        """Given a name, get the Action instance registered with this parser.
+        If only it were made available in the ArgumentError object. It is
+        passed as it's first arg...
+        """
+        container = self._actions
+        if name is None:
+            return None
+        for action in container:
+            if "/".join(action.option_strings) == name:
+                return action
+            elif action.metavar == name:
+                return action
+            elif action.dest == name:
+                return action
+
+        return None  # not found
+
+    def error(self, message: str) -> NoReturn:
+        exc_type, exc, tb = sys.exc_info()
+        if exc is not None:
+            if isinstance(exc, ArgumentError) and exc.argument_name is None:
+                action = self._get_action_from_name(exc.argument_name)
+                exc.argument_name = action  # type:ignore # TODO, investigate
+            raise exc
+        raise RelicArgParserError(message)
 
 
 # Circumvent mypy/pylint shenanigans ~
@@ -108,7 +158,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         try:
             ns = self.parser.parse_args(args)
             return self._run(ns, argv)
-        except SystemExit as sys_exit:
+        except SystemExit as sys_exit:  # Do not capture the exit
             return sys_exit.code
 
     def run(self) -> None:
@@ -118,9 +168,14 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         :returns: Nothing; the process is terminated
         :rtype: None
         """
-        ns = self.parser.parse_args()
-        exit_code = self._run(ns, sys.argv)
-        sys.exit(exit_code)
+        try:
+            ns = self.parser.parse_args()
+            exit_code = self._run(ns, sys.argv)
+            sys.exit(exit_code)
+        except RelicArgParserError as e:
+            _print_error(self.parser, e.args[0])
+        except ArgumentError as e:
+            _print_error(self.parser, str(e))
 
 
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
@@ -177,7 +232,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         raise NotImplementedError
 
     def _create_subparser_group(self, parser: ArgumentParser) -> _SubParsersAction:
-        return parser.add_subparsers(dest="command")  # type: ignore
+        return parser.add_subparsers(dest="command", parser_class=RelicArgParser)  # type: ignore
 
     def load_plugins(self) -> None:
         """
@@ -242,7 +297,7 @@ class RelicCli(CliPluginGroup):  # pylint: disable= too-few-public-methods
         self, command_group: Optional[_SubParsersAction] = None
     ) -> ArgumentParser:
         if command_group is None:
-            return ArgumentParser("relic")
+            return RelicArgParser("relic")
         return command_group.add_parser("relic")
 
 
