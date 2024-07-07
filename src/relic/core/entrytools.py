@@ -4,7 +4,7 @@ Tools for handling entrypoints via class-based registries
 
 from __future__ import annotations
 
-from importlib.metadata import entry_points, EntryPoint
+from importlib.metadata import entry_points, EntryPoint, EntryPoints
 from typing import (
     TypeVar,
     Protocol,
@@ -28,6 +28,8 @@ _TValue_contra = TypeVar(  # pylint: disable=invalid-name
     "_TValue_contra", contravariant=True
 )
 _TValue_co = TypeVar("_TValue_co", covariant=True)  # pylint: disable=invalid-name
+
+
 
 
 class KeyFunc(Protocol[_TKey_contra]):  # pylint: disable=too-few-public-methods
@@ -144,8 +146,8 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         """
         Load all entrypoints from the group specified in __init__
         """
-        all_entrypoints: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore[assignment, unused-ignore]
-        group_entrypoints: List[EntryPoint] = all_entrypoints.get(self._ep_group, [])
+        all_entrypoints: EntryPoints = entry_points()
+        group_entrypoints: List[EntryPoint] = all_entrypoints.select(group=self._ep_group)
         for ep in group_entrypoints:
             ep_name: str = ep.name
             ep_func: _TValue = ep.load()

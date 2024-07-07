@@ -9,6 +9,7 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
 dependencies = ["typing-extensions; python_version < '3.12'"]
@@ -16,6 +17,9 @@ description = "The core library used by other Relic-Tool packages."
 dynamic = ["version"]
 name = "relic-tool-core"
 requires-python = ">=3.9"
+dependencies = [
+  "importlib_metadata >= 3.6"
+]
 
 [project.readme]
 content-type = "text/markdown"
