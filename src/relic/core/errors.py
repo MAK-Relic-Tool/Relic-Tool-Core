@@ -2,6 +2,8 @@
 Errors shared across all Relic Tools.
 """
 
+from __future__ import annotations
+
 from typing import Any, Optional, TypeVar, Generic
 
 
@@ -98,10 +100,36 @@ class MagicMismatchError(MismatchError[bytes]):
     """
 
 
+class RelicSerializationError(RelicToolError):
+    """
+    An error was raised while serializing an object.
+    """
+
+
+class RelicSerializationSizeError(RelicSerializationError):
+    """
+    While serializing an object, the size of the binary buffer did not match the expected read or write size
+    """
+
+    def __init__(
+        self,
+        msg: str = "Size Mismatch",
+        size: Optional[int] = None,
+        expected: Optional[int] = None,
+        payload: Optional[str] = None,
+    ):
+        self.size = (size,)
+        self.expected = expected
+        self.payload = payload
+        super().__init__(msg)
+
+
 __all__ = [
     "RelicToolError",
     "MismatchError",
     "MagicMismatchError",
     "CliError",
     "UnboundCommandError",
+    "RelicSerializationError",
+    "RelicSerializationSizeError",
 ]

@@ -2,17 +2,18 @@
 Provides a version safe interface for retrieving attributes from the typing / typing_extensions modules.
 """
 
-import sys
+# mypy: ignore-errors
+# pylint: skip-file
 
-if sys.version_info[0:2] >= (3, 10):
-    from typing import TypeAlias  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import TypeAlias  # pylint: disable=no-name-in-module
 
-if sys.version_info[0:2] >= (3, 12):
-    from collections.abc import Buffer  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Buffer  # pylint: disable=no-name-in-module
+try:  # 3.10+
+    from typing import TypeAlias
+except ImportError:
+    from typing_extensions import TypeAlias
 
+try:  # 3.12+
+    from collections.abc import Buffer
+except ImportError:
+    from typing_extensions import Buffer
 
 __all__ = ["TypeAlias", "Buffer"]

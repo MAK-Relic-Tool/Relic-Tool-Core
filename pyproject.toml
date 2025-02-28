@@ -12,7 +12,10 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
-dependencies = ["typing-extensions; python_version < '3.12'", "importlib_metadata >= 3.6"]
+dependencies = [
+  "typing-extensions; python_version < '3.12'",
+  "importlib_metadata >= 6.5"
+]
 description = "The core library used by other Relic-Tool packages."
 dynamic = ["version"]
 name = "relic-tool-core"
@@ -60,6 +63,11 @@ module = ["tests.*"]
 ignore_errors = true
 ignore_missing_imports = true
 module = ["docs.*"]
+
+[[tool.mypy.overrides]]
+ignore_errors = true
+ignore_missing_imports = true
+module = ["importlib_metadata.*"]
 
 [tool.semantic_release]
 assets = []
