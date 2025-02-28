@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 from argparse import ArgumentParser, Namespace, ArgumentError, Action
-from importlib.metadata import entry_points, EntryPoint
+from importlib.metadata import entry_points, EntryPoints
 from os.path import basename
 from typing import (
     Optional,
@@ -16,13 +16,11 @@ from typing import (
     Protocol,
     Any,
     Union,
-    List,
-    Dict,
     Sequence,
     NoReturn,
 )
 
-from relic.core.errors import UnboundCommandError, RelicToolError
+from relic.core.errors import UnboundCommandError
 
 
 class RelicArgParserError(Exception): ...
@@ -239,8 +237,8 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        all_entry_points: EntryPoints = entry_points()  # type: ignore[assignment, unused-ignore]
-        for ep in all_entry_points.select(group = self.GROUP):
+        all_entry_points: EntryPoints = entry_points()
+        for ep in all_entry_points.select(group=self.GROUP):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 

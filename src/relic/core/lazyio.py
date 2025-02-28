@@ -107,8 +107,14 @@ class BinaryWrapper(BinaryIO):
         :returns: The name of the binary wrapper.
         :rtype: str
         """
-        return self._name or (
-            self._handle.name if hasattr(self._handle, "name") else str(self._handle)
+        return (
+            self._name
+            if self._name is not None
+            else (
+                self._handle.name
+                if hasattr(self._handle, "name")
+                else str(self._handle)
+            )
         )
 
     def close(self) -> None:
@@ -130,7 +136,6 @@ class BinaryWrapper(BinaryIO):
 
     def fileno(self) -> int:
         "`fileno() on python.org <https://docs.python.org/library/typing.html#typing.IO.fileno>`_"
-
         return self._handle.fileno()
 
     def flush(self) -> None:
