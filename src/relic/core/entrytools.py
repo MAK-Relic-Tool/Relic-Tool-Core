@@ -4,7 +4,6 @@ Tools for handling entrypoints via class-based registries
 
 from __future__ import annotations
 
-from importlib.metadata import entry_points, EntryPoint
 from typing import (
     TypeVar,
     Protocol,
@@ -13,10 +12,10 @@ from typing import (
     Optional,
     Iterable,
     MutableMapping,
-    List,
 )
 
 from relic.core.errors import RelicToolError
+from relic.core.typeshed import entry_points
 
 _TKey = TypeVar("_TKey")  # pylint: disable=invalid-name
 _TKey_contra = TypeVar(  # pylint: disable=invalid-name
@@ -144,9 +143,7 @@ class EntrypointRegistry(MutableMapping[Union[str, _TKey], _TValue]):
         """
         Load all entrypoints from the group specified in __init__
         """
-        all_entrypoints: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore[assignment, unused-ignore]
-        group_entrypoints: List[EntryPoint] = all_entrypoints.get(self._ep_group, [])
-        for ep in group_entrypoints:
+        for ep in entry_points().select(group=self._ep_group):
             ep_name: str = ep.name
             ep_func: _TValue = ep.load()
             self._raw_register(ep_name, ep_func)

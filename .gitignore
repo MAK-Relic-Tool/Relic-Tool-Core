@@ -12,6 +12,9 @@ __pycache__/
 src/**/*.egg-info/*
 dist/*
 
+# Ignore MyPy
+.mypy_cache/
+
 # Ignore docs
 ## Ignore compiled docs
 docs/build/**

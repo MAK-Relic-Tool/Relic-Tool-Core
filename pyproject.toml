@@ -1,75 +1,75 @@
 [build-system]
-requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.2"]
 
 [project]
-name = "relic-tool-core"
 authors = [{name = "Marcus Kertesz"}]
-description = "The core library used by other Relic-Tool packages."
 classifiers = [
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
-requires-python = ">=3.9"
-dependencies = ["typing-extensions; python_version < '3.12'"]
+dependencies = [
+  "typing-extensions; python_version < '3.12'",
+  "importlib_metadata >= 6.5; python_version < '3.12'"
+]
+description = "The core library used by other Relic-Tool packages."
 dynamic = ["version"]
+name = "relic-tool-core"
+requires-python = ">=3.9"
 
 [project.readme]
-file = "README.md"
 content-type = "text/markdown"
-
-[project.urls]
-Homepage = "https://github.com/MAK-Relic-Tool/Relic-Tool-Core"
-"Bug Tracker" = "https://github.com/MAK-Relic-Tool/Issues-Tracker/issues"
+file = "README.md"
 
 [project.scripts]
 relic = "relic.core.cli:CLI.run"
 
-[tool.setuptools]
-include-package-data = true
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-namespaces = true
-
-[tool.setuptools.dynamic]
-version = {attr = "relic.core.__version__"}
+[project.urls]
+"Bug Tracker" = "https://github.com/MAK-Relic-Tool/Issues-Tracker/issues"
+Homepage = "https://github.com/MAK-Relic-Tool/Relic-Tool-Core"
 
 [tool.mypy]
-mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
-warn_unused_configs = true
+check_untyped_defs = true
 disallow_any_generics = true
+disallow_incomplete_defs = true
 disallow_subclassing_any = true
 disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
 disallow_untyped_decorators = true
+disallow_untyped_defs = true
+extra_checks = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/src"
 no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
 no_implicit_reexport = true
 strict_equality = true
-extra_checks = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
+ignore_missing_imports = true
 module = ["serialization_tools.*"]
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+ignore_errors = true
+ignore_missing_imports = true
 module = ["tests.*"]
-ignore_missing_imports = true
-ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["docs.*"]
-ignore_missing_imports = true
 ignore_errors = true
+ignore_missing_imports = true
+module = ["docs.*"]
+
+[[tool.mypy.overrides]]
+ignore_errors = true
+ignore_missing_imports = true
+module = ["importlib_metadata.*"]
 
 [tool.semantic_release]
 assets = []
@@ -81,47 +81,58 @@ tag_format = "v{version}"
 version_variables = ["src/relic/core/__init__.py:__version__"]
 
 [tool.semantic_release.branches.main]
-match = "(main|master)"
-prerelease_token = "rc"
+match = "(main|master|staging)"
 prerelease = false
+prerelease_token = "rc"
 
 [tool.semantic_release.changelog]
-template_dir = "templates"
 changelog_file = "CHANGELOG.md"
 exclude_commit_patterns = []
+template_dir = "templates"
 
 [tool.semantic_release.changelog.environment]
-block_start_string = "{%"
+autoescape = true
 block_end_string = "%}"
-variable_start_string = "{{"
-variable_end_string = "}}"
-comment_start_string = "{#"
+block_start_string = "{%"
 comment_end_string = "#}"
-trim_blocks = false
+comment_start_string = "{#"
+extensions = []
+keep_trailing_newline = false
 lstrip_blocks = false
 newline_sequence = "\n"
-keep_trailing_newline = false
-extensions = []
-autoescape = true
+trim_blocks = false
+variable_end_string = "}}"
+variable_start_string = "{{"
 
 [tool.semantic_release.commit_author]
-env = "GIT_COMMIT_AUTHOR"
 default = "semantic-release <semantic-release>"
+env = "GIT_COMMIT_AUTHOR"
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "style", "refactor", "test"]
+default_bump_level = 0
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf"]
-default_bump_level = 0
-
-[tool.semantic_release.remote]
-name = "origin"
-type = "github"
-ignore_token_for_push = false
-
-[tool.semantic_release.remote.token]
-env = "GH_TOKEN"
 
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
+
+[tool.semantic_release.remote]
+ignore_token_for_push = false
+name = "origin"
+type = "github"
+
+[tool.semantic_release.remote.token]
+env = "GH_TOKEN"
+
+[tool.setuptools]
+include-package-data = true
+package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "relic.core.__version__"}
+
+[tool.setuptools.packages.find]
+namespaces = true
+where = ["src"]

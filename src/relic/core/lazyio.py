@@ -24,13 +24,14 @@ from typing import (
     runtime_checkable,
     Generator,
     List,
+    TypeVar,
+    Generic,
+    Sized,
 )
-
-from relic.core.errors import RelicToolError, MismatchError
+from relic.core.errors import RelicToolError, MismatchError, RelicSerializationSizeError
 from relic.core.typeshed import Buffer
 
 ByteOrder = Literal["big", "little"]
-
 
 _KIBIBYTE = 1024
 
@@ -106,8 +107,14 @@ class BinaryWrapper(BinaryIO):
         :returns: The name of the binary wrapper.
         :rtype: str
         """
-        return self._name or (
-            self._handle.name if hasattr(self._handle, "name") else str(self._handle)
+        return (
+            self._name
+            if self._name is not None
+            else (
+                self._handle.name
+                if hasattr(self._handle, "name")
+                else str(self._handle)
+            )
         )
 
     def close(self) -> None:
@@ -129,7 +136,6 @@ class BinaryWrapper(BinaryIO):
 
     def fileno(self) -> int:
         "`fileno() on python.org <https://docs.python.org/library/typing.html#typing.IO.fileno>`_"
-
         return self._handle.fileno()
 
     def flush(self) -> None:
@@ -244,7 +250,7 @@ class BinaryWindow(BinaryWrapper):
     Maintains an internal pointer to the current position of the window, ignoring the parent stream's current position
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=R0917
         self,
         parent: Union[BinaryIO, BinaryProxy],
         start: int,
@@ -315,9 +321,9 @@ class BinaryWindow(BinaryWrapper):
     def write(self, __s: Union[bytes, Buffer]) -> int:
         remaining = self._remaining
 
-        if len(__s) > remaining:  # type: ignore[arg-type]
+        if isinstance(__s, Sized) and len(__s) > remaining:
             raise RelicToolError(
-                f"Cannot write {len(__s)} bytes, only {remaining} bytes remaining!"  # type: ignore[arg-type]
+                f"Cannot write {len(__s)} bytes, only {remaining} bytes remaining!"
             )
 
         with self.__rw_ctx():
@@ -383,7 +389,8 @@ class _CStringOps:
                 if pad_count != int(pad_count):
                     raise RelicToolError(
                         f"Trying to pad '{buffer!r}' ({len(buffer)}) to '{size}' bytes,"
-                        f" but padding '{pad_buffer!r}' ({len(pad_buffer)}) is not a multiple of '{size-len(buffer)}' !"
+                        f" but padding '{pad_buffer!r}' ({len(pad_buffer)})"
+                        f" is not a multiple of '{size - len(buffer)}' !"
                     )
                 buffer = b"".join([buffer, pad_buffer * int(pad_count)])
             elif len(buffer) != size:
@@ -510,15 +517,19 @@ class _SizedIntOps(_IntOps):
         return self._serializer.write_bytes(buffer, offset, size)
 
     def read_le(self, offset: int, size: Optional[int] = None) -> int:
+        """Read little endian integer"""
         return self.read(offset=offset, size=size, byteorder="little")
 
     def write_le(self, value: int, offset: int, size: Optional[int] = None) -> int:
+        """Write little endian integer"""
         return self.write(value=value, offset=offset, size=size, byteorder="little")
 
     def read_be(self, offset: int, size: Optional[int] = None) -> int:
+        """Read big endian integer"""
         return self.read(offset=offset, size=size, byteorder="big")
 
     def write_be(self, value: int, offset: int, size: Optional[int] = None) -> int:
+        """Write big endian integer"""
         return self.write(value=value, offset=offset, size=size, byteorder="big")
 
     def unpack(
@@ -816,7 +827,7 @@ def read_chunks(
                 yield buffer
 
 
-def chunk_copy(
+def chunk_copy(  # pylint: disable=R0917
     src: Union[BinaryIO, bytes, bytearray],
     dest: Union[BinaryIO, bytearray],
     src_start: Optional[int] = None,
@@ -869,3 +880,145 @@ def chunk_copy(
             dest.seek(dst_start)
         for chunk in read_chunks(src, src_start, size, chunk_size):
             dest.write(chunk)
+
+
+_T = TypeVar("_T")
+
+
+class BinaryConverter(Protocol[_T]):
+    def bytes2value(self, b: bytes) -> _T:
+        raise NotImplementedError
+
+    def value2bytes(self, v: _T) -> bytes:
+        raise NotImplementedError
+
+
+class ByteConverter(BinaryConverter[bytes]):
+    @classmethod
+    def bytes2value(cls, b: bytes) -> bytes:  # pylint: disable=W0221
+        return b
+
+    @classmethod
+    def value2bytes(cls, v: bytes) -> bytes:  # pylint: disable=W0221
+        return v
+
+
+class IntConverter(BinaryConverter[int]):
+    def __init__(
+        self,
+        length: int,
+        byteorder: Literal["little", "big"] = "little",
+        signed: bool = False,
+    ):
+        self._length = length
+        self._byteorder = byteorder
+        self._signed = signed
+
+    def bytes2value(self, b: bytes) -> int:
+        if len(b) != self._length:
+            raise RelicSerializationSizeError(
+                f"`{b!r}` expected '{self._length}' bytes, got '{len(b)}' bytes"
+            )
+        return int.from_bytes(b, self._byteorder, signed=self._signed)
+
+    def value2bytes(self, v: int) -> bytes:
+        return int.to_bytes(v, self._length, self._byteorder, signed=self._signed)
+
+
+class CStringConverter(BinaryConverter[str]):
+    def __init__(
+        self,
+        encoding: str = "ascii",
+        padding: Optional[str] = None,
+        size: Optional[int] = None,
+    ):
+        self._encoding = encoding
+        self._padding = padding
+        self._size = size
+
+    def bytes2value(self, b: bytes) -> str:
+        if self._size is not None and len(b) != self._size:
+            raise RelicSerializationSizeError(
+                f"`{b!r}` expected '{self._size}' bytes, got '{len(b)}' bytes"
+            )
+        decoded = b.decode(self._encoding)
+
+        if self._padding is not None:
+            unpadded = decoded.rstrip(self._padding)
+        else:
+            unpadded = decoded
+
+        return unpadded
+
+    def value2bytes(self, v: str) -> bytes:
+        encoded = v.encode(self._encoding)
+
+        if self._size is not None and len(encoded) != self._size:
+            if self._padding is None:
+                raise RelicToolError("CString Converter")
+
+            _padding = self._padding.encode(self._encoding)
+            pad_size = (self._size - len(encoded)) / len(_padding)
+            if int(pad_size) != pad_size:
+                raise RelicToolError("CString Converter")
+            padding = _padding * int(pad_size)
+        else:
+            padding = b""
+
+        padded = encoded + padding
+        return padded
+
+
+class BinaryProperty(Generic[_T]):
+    """
+    Helper class to convert binary data to typed data as a lazy property
+    Expect a BinaryIO '_serializer' object on the parent object
+    """
+
+    def __init__(self, start: int, size: int, converter: BinaryConverter[_T]):
+        self._start = start
+        self._size = size
+        self._converter = converter
+
+    def __get__(self, instance: Any, owner: Any) -> _T:
+        serializer = instance._serializer
+        buffer = self._read(serializer)
+        value = self._converter.bytes2value(buffer)
+        return value
+
+    def __set__(self, instance: Any, value: _T) -> None:
+        serializer = instance._serializer
+        buffer = self._converter.value2bytes(value)
+        self._write(serializer, buffer)
+
+    @contextmanager
+    def _window(self, stream: BinaryIO) -> Generator[BinaryIO, None, None]:
+        """Open a window into the stream from the expected start and end of this data's location"""
+        yield BinaryWindow(stream, self._start, self._size)
+
+    def _read(self, stream: BinaryIO) -> bytes:
+        """Read a byte buffer from the given stream"""
+        with self._window(stream) as window:
+            return window.read()
+
+    def _write(self, stream: BinaryIO, value: bytes) -> None:
+        """Write the byte buffer to the given stream"""
+        with self._window(stream) as window:
+            window.write(value)
+
+
+class ConstProperty(Generic[_T]):
+    """
+    A property for a contsant value
+    Raises an error if a new constant is set
+    """
+
+    def __init__(self, value: _T, err: Exception):
+        self._value = value
+        self._err = err
+
+    def __get__(self, instance: Any, owner: Any) -> _T:
+        return self._value
+
+    def __set__(self, instance: Any, value: _T) -> None:
+        raise self._err

@@ -1,18 +1,68 @@
 """
 Core files for implementing a Command Line Interface using Entrypoints
-
-
 """
 
 from __future__ import annotations
 
 import sys
-from argparse import ArgumentParser, Namespace
-from importlib.metadata import entry_points, EntryPoint
+from argparse import ArgumentParser, Namespace, ArgumentError, Action
+from gettext import gettext
 from os.path import basename
-from typing import Optional, TYPE_CHECKING, Protocol, Any, Union, List, Dict, Sequence
+from typing import (
+    Optional,
+    TYPE_CHECKING,
+    Protocol,
+    Any,
+    Union,
+    Sequence,
+    NoReturn,
+)
 
 from relic.core.errors import UnboundCommandError
+from relic.core.typeshed import entry_points
+
+
+class RelicArgParserError(Exception):
+    """An error occurred while parsing Command Line arguments"""
+
+
+def _print_error(parser: ArgumentParser, message: str) -> None:
+    parser.print_usage(sys.stderr)
+    args = {"prog": parser.prog, "message": message}
+    parser.exit(2, gettext("%(prog)s: error: %(message)s\n") % args)
+
+
+class RelicArgParser(ArgumentParser):
+    """
+    Custom ArgParser with special error handling
+    """
+
+    def _get_action_from_name(self, name: str | None) -> Action | None:
+        """Given a name, get the Action instance registered with this parser.
+        If only it were made available in the ArgumentError object. It is
+        passed as it's first arg...
+        """
+        container = self._actions
+        if name is None:
+            return None
+        for action in container:
+            if "/".join(action.option_strings) == name:
+                return action
+            if action.metavar == name:
+                return action
+            if action.dest == name:
+                return action
+
+        return None  # not found
+
+    def error(self, message: str) -> NoReturn:
+        _, exc, _ = sys.exc_info()
+        if exc is not None:
+            if isinstance(exc, ArgumentError) and exc.argument_name is None:
+                action = self._get_action_from_name(exc.argument_name)
+                exc.argument_name = action  # type:ignore # TODO, investigate
+            raise exc
+        raise RelicArgParserError(message)
 
 
 # Circumvent mypy/pylint shenanigans ~
@@ -108,7 +158,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         try:
             ns = self.parser.parse_args(args)
             return self._run(ns, argv)
-        except SystemExit as sys_exit:
+        except SystemExit as sys_exit:  # Do not capture the exit
             return sys_exit.code
 
     def run(self) -> None:
@@ -118,9 +168,14 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         :returns: Nothing; the process is terminated
         :rtype: None
         """
-        ns = self.parser.parse_args()
-        exit_code = self._run(ns, sys.argv)
-        sys.exit(exit_code)
+        try:
+            ns = self.parser.parse_args()
+            exit_code = self._run(ns, sys.argv)
+            sys.exit(exit_code)
+        except RelicArgParserError as e:
+            _print_error(self.parser, e.args[0])
+        except ArgumentError as e:
+            _print_error(self.parser, str(e))
 
 
 class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
@@ -177,19 +232,21 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         raise NotImplementedError
 
     def _create_subparser_group(self, parser: ArgumentParser) -> _SubParsersAction:
-        return parser.add_subparsers(dest="command")  # type: ignore
+        return parser.add_subparsers(dest="command", parser_class=RelicArgParser)  # type: ignore
 
     def load_plugins(self) -> None:
         """
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        all_entry_points: Dict[str, List[EntryPoint]] = entry_points()  # type: ignore[assignment, unused-ignore]
-        for ep in all_entry_points.get(self.GROUP, []):
+        for ep in entry_points().select(group=self.GROUP):
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
-    def command(self, ns: Namespace) -> Optional[int]:
+    def command(self, ns: Namespace) -> Optional[int]:  # pylint: disable=W0613
+        """
+        Adapter which extracts parsed CLI arguments from the namespace and runs the appropriate CLI command
+        """
         self.parser.print_help(sys.stderr)
         return 1
 
@@ -242,7 +299,7 @@ class RelicCli(CliPluginGroup):  # pylint: disable= too-few-public-methods
         self, command_group: Optional[_SubParsersAction] = None
     ) -> ArgumentParser:
         if command_group is None:
-            return ArgumentParser("relic")
+            return RelicArgParser("relic")
         return command_group.add_parser("relic")
 
 
