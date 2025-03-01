@@ -4,7 +4,6 @@ Tools for handling entrypoints via class-based registries
 
 from __future__ import annotations
 
-from importlib_metadata import entry_points
 from typing import (
     TypeVar,
     Protocol,
@@ -16,6 +15,7 @@ from typing import (
 )
 
 from relic.core.errors import RelicToolError
+from relic.core.typeshed import entry_points
 
 _TKey = TypeVar("_TKey")  # pylint: disable=invalid-name
 _TKey_contra = TypeVar(  # pylint: disable=invalid-name

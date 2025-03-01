@@ -1,2 +1,2 @@
-importlib-metadata>=6.5
+importlib-metadata>=6.5; python_version < '3.12'
 typing-extensions; python_version < '3.12'

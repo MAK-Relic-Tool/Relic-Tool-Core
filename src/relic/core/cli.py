@@ -7,7 +7,6 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser, Namespace, ArgumentError, Action
 from gettext import gettext
-from importlib_metadata import entry_points
 from os.path import basename
 from typing import (
     Optional,
@@ -20,6 +19,7 @@ from typing import (
 )
 
 from relic.core.errors import UnboundCommandError
+from relic.core.typeshed import entry_points
 
 
 class RelicArgParserError(Exception):

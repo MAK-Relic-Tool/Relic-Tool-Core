@@ -16,4 +16,9 @@ try:  # 3.12+
 except ImportError:
     from typing_extensions import Buffer
 
-__all__ = ["TypeAlias", "Buffer"]
+try:  # 3.12- (Use backport if found, otherwise assume stdlib meets minimum requirements)
+    from importlib_metadata import entry_points
+except ImportError:
+    from importlib.metadata import entry_points
+
+__all__ = ["TypeAlias", "Buffer", "entry_points"]
