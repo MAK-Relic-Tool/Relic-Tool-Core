@@ -2,7 +2,7 @@
 Core files shared between other Relic-Tool packages.
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 from relic.core.cli import CLI
 
