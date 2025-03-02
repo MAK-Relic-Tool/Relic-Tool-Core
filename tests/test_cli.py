@@ -69,8 +69,8 @@ def _ArgumentError(name: str, message: str):
     return _
 
 
-_HELP = ["relic", "-h"], """usage: relic [-h] {} ...""", 0, True
-_NO_SUB_CMD = ["relic"], """usage: relic [-h] {} ...""", 1, False
+_HELP = ["relic", "-h"], """usage: relic [-h]""", 0, True
+_NO_SUB_CMD = ["relic"], """usage: relic [-h]""", 1, True
 _T = """relic: error: argument command: invalid choice: '{name}' (choose from )"""
 _BAD_SUB_CMD = (
     ["relic", "Paul_Chambers"],
