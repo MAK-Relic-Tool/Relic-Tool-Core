@@ -439,12 +439,15 @@ class CliPlugin(_CliPlugin):  # pylint: disable= too-few-public-methods
     ) -> ArgumentParser:
         raise NotImplementedError
 
-    def command(self, ns: Namespace) -> Optional[int]:
+    def command(self, ns: Namespace, *, logger: logging.Logger) -> Optional[int]:
         """
         Run the command line program
 
         :param ns: The arguments passed in, wrapped in a namespace object
         :type ns: Namespace
+
+        :param logger: The logger object to print messages to
+        :type logger: logging.Logger
 
         :returns: The exit status code, None implies a status code of 0
         :rtype: Optional[int]
