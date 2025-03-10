@@ -26,8 +26,8 @@ from typing import (
     List,
     TypeVar,
     Generic,
-    Sized,
 )
+from collections.abc import Sized
 from relic.core.errors import RelicToolError, MismatchError, RelicSerializationSizeError
 from relic.core.typeshed import Buffer
 
