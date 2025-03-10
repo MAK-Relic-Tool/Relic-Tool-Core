@@ -408,8 +408,8 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
             ep_func(parent=self.subparsers)
 
     def command(
-        self, ns: Namespace, *, logger: logging.Logger
-    ) -> Optional[int]:  # pylint: disable=W0613
+        self, ns: Namespace, *, logger: logging.Logger  # pylint: disable=W0613
+    ) -> Optional[int]:
         """
         Adapter which extracts parsed CLI arguments from the namespace and runs the appropriate CLI command
         """
