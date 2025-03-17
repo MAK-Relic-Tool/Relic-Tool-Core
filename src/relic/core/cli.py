@@ -271,7 +271,13 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
     def __init__(self, parser: ArgumentParser):
         self.parser = parser
 
-    def _run(self, ns: Namespace, argv: Optional[Sequence[str]] = None) -> int:
+    def _run(
+        self,
+        ns: Namespace,
+        argv: Optional[Sequence[str]] = None,
+        *,
+        logger: Optional[logging.Logger] = None,
+    ) -> int:
         """
         Run the command using args provided by namespace
 
@@ -300,13 +306,16 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if not hasattr(ns, "function"):
             raise UnboundCommandError(cmd)
         func = ns.function
-        logger = create_logger_from_namespace(ns)
+        if logger is None:
+            logger = create_logger_from_namespace(ns)
         result: Optional[int] = func(ns, logger=logger)
         if result is None:  # Assume success
             result = 0
         return result
 
-    def run_with(self, *args: str) -> Union[str, int, None]:
+    def run_with(
+        self, *args: str, logger: Optional[logging.Logger] = None
+    ) -> Union[str, int, None]:
         """
         Run the command line interface with the given arguments.
         :param args: The arguments that will be run on the command line interface.
@@ -320,7 +329,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
             args = args[1:]  # allow prog to be first command
         try:
             ns = self.parser.parse_args(args)
-            return self._run(ns, argv)
+            return self._run(ns, argv, logger=logger)
         except SystemExit as sys_exit:  # Do not capture the exit
             return sys_exit.code
 
@@ -386,9 +395,11 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         self._preload()
         return super().run()
 
-    def run_with(self, *args: str) -> Union[str, int, None]:
+    def run_with(
+        self, *args: str, logger: Optional[logging.Logger] = None
+    ) -> Union[str, int, None]:
         self._preload()
-        return super().run_with(*args)
+        return super().run_with(*args, logger=logger)
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
