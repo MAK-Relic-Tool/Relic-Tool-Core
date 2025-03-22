@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace, ArgumentError
+from contextlib import contextmanager
 from dataclasses import dataclass
 from gettext import gettext
 from logging.config import fileConfig
@@ -16,17 +17,56 @@ from logging.handlers import RotatingFileHandler
 from os.path import basename
 from typing import (
     Optional,
-    TYPE_CHECKING,
     Protocol,
     Any,
     Union,
     Sequence,
     Callable,
     Tuple,
+    NoReturn,
 )
 
-from relic.core.errors import UnboundCommandError, RelicArgParserError, RelicArgParser
+from relic.core.errors import UnboundCommandError, RelicArgParserError
 from relic.core.typeshed import entry_points
+
+
+class RelicArgParser(ArgumentParser):
+    """
+    Custom ArgParser with special error handling
+    """
+
+    # # Error would call this if it had a name to scan for, but it always passed None
+    # def _get_action_from_name(self, name: str | None) -> Action | None:
+    #     """Given a name, get the Action instance registered with this parser.
+    #     If only it were made available in the ArgumentError object. It is
+    #     passed as it's first arg...
+    #     """
+    #     container = self._actions
+    #     if name is None:
+    #         return None
+    #     for action in container:
+    #         if "/".join(action.option_strings) == name:
+    #             return action
+    #         if action.metavar == name:
+    #             return action
+    #         if action.dest == name:
+    #             return action
+    #
+    #     return None  # not found
+
+    def error(self, message: str) -> NoReturn:
+        _, exc, _ = sys.exc_info()
+        if exc is not None:
+            # # TODO; fix this?
+            # # This was trying to specify the argument name if it wasnt present, BUT
+            # # the if statement implies get_action_from_name should always return None
+            # # So something isn't working here, but what?
+            # if isinstance(exc, ArgumentError) and exc.argument_name is None:
+            #     action = self._get_action_from_name(exc.argument_name)
+            #     exc.argument_name = action  # type:ignore
+            raise exc
+        raise RelicArgParserError(message)
+
 
 LOGLEVEL_TABLE = {
     "none": logging.NOTSET,
@@ -139,11 +179,13 @@ def _add_logging_to_parser(
     )
 
 
-def create_logger_from_namespace(ns: Namespace) -> logging.Logger:
-    logger = logging.getLogger()
+@contextmanager
+def setup_cli_logging(
+    ns: Namespace, logger: Optional[logging.Logger] = None
+) -> logging.Logger:
     options = _extract_logging_from_namespace(ns)
-    setup_logging_for_cli(options, logger=logger)
-    return logger
+    with apply_logging_handlers(options, logger=logger) as cli_logger:
+        yield cli_logger
 
 
 def _extract_logging_from_namespace(ns: Namespace) -> LoggingOptions:
@@ -194,7 +236,8 @@ def _create_console_handlers(
     return h_out, h_err
 
 
-def setup_logging_for_cli(
+@contextmanager
+def apply_logging_handlers(
     options: LoggingOptions,
     print_log: bool = True,
     logger: Optional[logging.Logger] = None,
@@ -206,14 +249,23 @@ def setup_logging_for_cli(
 
     logger.setLevel(options.log_level)
 
+    handlers = []
     if options.log_file is not None:
         h_log_file = _create_file_handler(options.log_file, options.log_level)
         logger.addHandler(h_log_file)
+        handlers.append(h_log_file)
 
     if print_log:
         h_out, h_err = _create_console_handlers(options.log_level, logging.WARNING)
         logger.addHandler(h_out)
         logger.addHandler(h_err)
+        handlers.append(h_out)
+        handlers.append(h_err)
+    try:
+        yield logger
+    finally:
+        for handler in handlers:
+            logger.removeHandler(handler)
 
 
 def _print_error(parser: ArgumentParser, message: str) -> None:
@@ -301,9 +353,8 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if not hasattr(ns, "function"):
             raise UnboundCommandError(cmd)
         func = ns.function
-        if logger is None:
-            logger = create_logger_from_namespace(ns)
-        result: Optional[int] = func(ns, logger=logger)
+        with setup_cli_logging(ns, logger) as cli_logger:
+            result: Optional[int] = func(ns, logger=cli_logger)
         if result is None:  # Assume success
             result = 0
         return result
@@ -367,7 +418,9 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         load_on_create: bool = True,
     ):
         if self.GROUP is None:
-            raise ValueError
+            raise RelicArgParserError(
+                f"{self.__class__.__name__}.GROUP was not specified!"
+            )
         parser = self._create_parser(parent)
         _add_logging_to_parser(parser)
         super().__init__(parser)
@@ -407,7 +460,9 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        for ep in entry_points().select(group=self.GROUP):  # pragma: nocover
+        for ep in entry_points().select(
+            group=self.GROUP
+        ):  # pragma: nocover # TODO, use mock.patch to test
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
@@ -484,9 +539,10 @@ CLI = RelicCli(
 if __name__ == "__main__":
     CLI.run()
 
+
 __all__ = [
     "RelicArgParserError",  # Should move to relic.core.errors in next major
-    "RelicArgParser",  # Should move to relic.core.errors in next major
+    # Should move to relic.core.errors in next major
     "CLI",
     "CliPlugin",
     "CliPluginGroup",

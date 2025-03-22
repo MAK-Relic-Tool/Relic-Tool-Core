@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace
+from os.path import basename
 from typing import Any, Optional, Type
 from unittest.mock import patch
 
@@ -10,7 +11,7 @@ import pytest
 
 from relic.core.cli import (
     _create_file_handler,
-    setup_logging_for_cli,
+    apply_logging_handlers,
     CliPlugin,
     CliPluginGroup,
     RelicCli,
@@ -19,8 +20,9 @@ from relic.core.cli import (
     get_dir_type_validator,
     get_path_validator,
     LoggingOptions,
+    RelicArgParser,
 )
-from relic.core.errors import RelicArgParser, RelicArgParserError
+from relic.core.errors import RelicArgParserError, UnboundCommandError
 from tests.util import TempFileHandle
 
 EXISTS_FILE_PATH = __file__
@@ -85,7 +87,7 @@ def test_setup_logging_for_cli(
                 log_config=None if not specify_log_config else logconfig.path,
                 log_file=None if not specify_log_file else logfile.path,
             )
-            setup_logging_for_cli(opt, print_log)
+            apply_logging_handlers(opt, print_log)
 
 
 class FakeCliPlugin(CliPlugin):
@@ -134,11 +136,11 @@ def test_init_cli(cli: Type[CliPlugin | CliPluginGroup], parent: bool):
 def test_init_cli_group_none():
     try:
         CliPluginGroup()
-    except ValueError:
+    except RelicArgParserError:
         pass
     else:
         pytest.fail(
-            "CliPlugin should have raised ValueError due to GROUP being set to None"
+            "CliPlugin should have raised RelicArgParserError due to GROUP being set to None"
         )
 
 
@@ -234,6 +236,26 @@ class DummyCliPlugin(CliPlugin):
         return None
 
 
+class ManualSetFunctionCliPlugin(CliPluginGroup):
+    GROUP = "relic.cli.manset"
+
+    def _create_parser(
+        self, command_group: Optional[_SubParsersAction] = None
+    ) -> ArgumentParser:
+        if command_group is not None:
+            parser = command_group.add_parser("manset")
+        else:
+            parser = RelicArgParser("manset")
+        parser.set_defaults(
+            function=self.command
+        )  # More practical to replace with custom help or something
+        return parser
+
+    def command(self, ns: Namespace, *, logger: logging.Logger) -> Optional[int]:
+        logger.info("Manual")
+        return None
+
+
 class ForceArgErrorCliPlugin(CliPlugin):
     def __init__(self, parent: _SubParsersAction | None):
         super().__init__(parent)
@@ -269,6 +291,7 @@ class ForceRelicParserErrorCliPlugin(CliPlugin):
 DummyCliPlugin(dummy_cli.subparsers)  # init dummy command
 ForceArgErrorCliPlugin(dummy_cli.subparsers)
 ForceRelicParserErrorCliPlugin(dummy_cli.subparsers)
+ManualSetFunctionCliPlugin(dummy_cli.subparsers)
 
 
 @pytest.mark.parametrize("cli", [dummy_cli])
@@ -276,6 +299,7 @@ ForceRelicParserErrorCliPlugin(dummy_cli.subparsers)
     ["args", "expected"],
     [
         (["relic", "-h"], 0),
+        (["relic", "manset"], 0),
         (["relic", "dummy"], 0),
         (["relic", "parser_err"], 2),
         (["relic", "arg_err"], 2),
@@ -295,15 +319,99 @@ def test_cli_run(cli: CliPlugin, args: list[str], expected: Optional[int]):
     [
         (["relic", "-h"], 0),
         (["relic", "dummy"], 0),
-        (["relic", "parser_err"], 2),
-        (["relic", "arg_err"], 2),
         (["-h"], 0),
         (["dummy"], 0),
-        (["parser_err"], 2),
-        (["arg_err"], 2),
     ],
 )
 def test_cli_run_with(cli: CliPlugin, args: list[str], expected: Optional[int]):
-    with patch.object(sys, "argv", args):
-        status = cli.run_with()
-        assert status == expected
+    status = cli.run_with(*args)
+    assert status == expected
+
+
+@pytest.mark.parametrize("cli", [dummy_cli])
+@pytest.mark.parametrize(
+    ["args", "expected"],
+    [
+        (["relic", "parser_err"], RelicArgParserError),
+        (["relic", "arg_err"], argparse.ArgumentError),
+        (["parser_err"], RelicArgParserError),
+        (["arg_err"], argparse.ArgumentError),
+    ],
+)
+def test_cli_run_with_error(cli: CliPlugin, args: list[str], expected: Type[Exception]):
+    try:
+        _ = cli.run_with(*args)
+    except expected:
+        pass
+    else:
+        pytest.fail(f"Expected '{expected}' error")
+
+
+@pytest.mark.parametrize("log_file", [True, False])
+@pytest.mark.parametrize("log_config", [True, False])
+@pytest.mark.parametrize("print_log", [True, False])
+def test_apply_logging_handlers(log_file: bool, log_config: bool, print_log: bool):
+    with TempFileHandle(".logfile", create=log_file) as log_file_h:
+        with TempFileHandle(".logcfg", create=log_config) as log_cfg_h:
+            if log_config:
+                with log_cfg_h.open("w") as writer:
+                    writer.write(
+                        """[loggers]
+keys=root
+
+[handlers]
+keys=h0
+
+[formatters]
+keys=f0
+
+[handler_h0]
+class=logging.StreamHandler
+formatter=f0
+args=()
+
+[formatter_f0]
+class=logging.Formatter
+format=%(levelname)s:%(asctime)s - %(message)s
+
+[logger_root]
+level=DEBUG
+handlers=h0"""
+                    )
+            options = LoggingOptions(
+                log_file=log_file_h.path,
+                log_level=logging.DEBUG,
+                log_config=log_cfg_h.path,
+            )
+            logger = logging.getLogger()
+            with apply_logging_handlers(options, print_log, logger):
+                logger.debug("blah")
+
+
+def test_cli_unbound_func():
+    try:
+        dummy_cli._run(Namespace(), [])
+    except UnboundCommandError:
+        pass
+    else:
+        pytest.fail("Expected Unbound Command Error")
+
+
+def test_command_name_captured():
+    try:
+        dummy_cli._run(Namespace(), [])
+    except UnboundCommandError as e:
+        expected = basename(dummy_cli.parser.prog)
+        assert e.args[0] == expected
+    else:
+        pytest.fail("Expected Unbound Command Error")
+
+
+def test_error_raises_relic_arg_parser_error():
+    cli = RelicCli()
+    try:
+        cli.parser.add_subparsers()
+    except RelicArgParserError:
+        pass
+    else:
+        pytest.fail("Expected Relic Parser Error")

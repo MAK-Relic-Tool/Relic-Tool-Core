@@ -958,6 +958,9 @@ class CStringConverter(BinaryConverter[str]):
                 raise RelicToolError("CString Converter")
 
             _padding = self._padding.encode(self._encoding)
+            if len(_padding) == 0:
+                raise RelicToolError("CString Converter")
+
             pad_size = (self._size - len(encoded)) / len(_padding)
             if int(pad_size) != pad_size:
                 raise RelicToolError("CString Converter")
