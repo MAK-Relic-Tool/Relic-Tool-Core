@@ -24,6 +24,8 @@ from typing import (
     Callable,
     Tuple,
     NoReturn,
+    Generator,
+    List,
 )
 
 from relic.core.errors import UnboundCommandError, RelicArgParserError
@@ -182,7 +184,7 @@ def _add_logging_to_parser(
 @contextmanager
 def setup_cli_logging(
     ns: Namespace, logger: Optional[logging.Logger] = None
-) -> logging.Logger:
+) -> Generator[logging.Logger, None, None]:
     options = _extract_logging_from_namespace(ns)
     with apply_logging_handlers(options, logger=logger) as cli_logger:
         yield cli_logger
@@ -208,7 +210,7 @@ def _create_file_handler(log_file: str, log_level: int) -> logging.FileHandler:
     h = RotatingFileHandler(
         log_file,
         encoding="utf8",
-        maxBytes=100000,
+        maxBytes=1024 * 1024,
         backupCount=-1,
     )
     h.setFormatter(f)
@@ -241,7 +243,7 @@ def apply_logging_handlers(
     options: LoggingOptions,
     print_log: bool = True,
     logger: Optional[logging.Logger] = None,
-) -> None:
+) -> Generator[logging.Logger, None, None]:
     logger = logger or logging.getLogger()  # Root logger
     # Run first to override other loggers
     if options.log_config is not None:
@@ -249,7 +251,7 @@ def apply_logging_handlers(
 
     logger.setLevel(options.log_level)
 
-    handlers = []
+    handlers: List[logging.Handler] = []
     if options.log_file is not None:
         h_log_file = _create_file_handler(options.log_file, options.log_level)
         logger.addHandler(h_log_file)

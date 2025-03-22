@@ -291,11 +291,6 @@ class BinaryWindow(BinaryWrapper):
             raise ValueError(__whence)
 
         if new_now < 0:  # or new_now > self._size # Allow seek past end of file?
-            __whence_str = {
-                os.SEEK_SET: "start",
-                os.SEEK_CUR: "offset",
-                os.SEEK_END: "end",
-            }[__whence]
             raise RelicToolError("Invalid Seek: seeking past start of stream!")
         super().seek(self._start + new_now)
         self._now = new_now
@@ -1012,7 +1007,7 @@ class BinaryProperty(Generic[_T]):
 
 class ConstProperty(Generic[_T]):
     """
-    A property for a contsant value
+    A property for a constant value
     Raises an error if a new constant is set
     """
 
