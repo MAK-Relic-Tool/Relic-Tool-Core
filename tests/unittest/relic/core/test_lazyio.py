@@ -28,6 +28,7 @@ from relic.core.lazyio import (
     BinaryProxy,
     is_proxy,
     _SizedIntOps,
+    _IntOps,
 )
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
@@ -729,3 +730,49 @@ class TestSizedIntOps:
                 ops.write_be(value, 1)
                 result2 = stream.getvalue()[1:]
                 assert result2 == buffer
+
+
+class TestIntOps:
+    def test_read_size_none(self):
+        with BytesIO() as h:
+            ops = _IntOps(BinarySerializer(h))
+            try:
+                ops.read(0, None)
+            except RelicToolError:
+                pass
+            else:
+                pytest.fail("Expected a RelicToolError to be raised")
+
+    @pytest.mark.parametrize(["value", "size"], [(636, 2)])
+    def test_read(self, value: int, size: int):
+        with BytesIO(value.to_bytes(size, "little", signed=False)) as h:
+            ops = _IntOps(BinarySerializer(h))
+            result = ops.read(0, size)
+            assert result == value
+
+    def test_write_size_none(self):
+        with BytesIO() as h:
+            ops = _IntOps(BinarySerializer(h))
+            try:
+                ops.write(0, 0, None)
+            except RelicToolError:
+                pass
+            else:
+                pytest.fail("Expected a RelicToolError to be raised")
+
+    @pytest.mark.parametrize(["value", "size"], [(636, 2)])
+    def test_write(self, value: int, size: int):
+        buffer = value.to_bytes(size, "little", signed=False)
+        with BytesIO() as h:
+            ops = _IntOps(BinarySerializer(h))
+            ops.write(value, 0, size)
+            result = h.getvalue()
+            assert result == buffer
+
+    def test_unpack_mismatch(self):
+        try:
+            _IntOps.unpack_int(b"\0\1", 1)
+        except MismatchError:
+            pass
+        else:
+            pytest.fail("Expected MismatchError")
