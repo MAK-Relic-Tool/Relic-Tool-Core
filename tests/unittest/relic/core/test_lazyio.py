@@ -6,7 +6,7 @@ from typing import BinaryIO, Optional, Any, Tuple, TypeVar, Type
 
 import pytest
 
-from relic.core.errors import RelicSerializationSizeError, RelicToolError
+from relic.core.errors import RelicSerializationSizeError, RelicToolError, MismatchError
 from relic.core.lazyio import (
     BinaryWrapper,
     BinarySerializer,
@@ -23,6 +23,8 @@ from relic.core.lazyio import (
     get_proxy,
     tell_end,
     ZLibFileReader,
+    BinaryProxy,
+    is_proxy,
 )
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
@@ -401,3 +403,75 @@ class TestZlibFileReader:
             _ = ZLibFileReader(stream)
             writable = _.writable()
             assert writable is False
+
+
+def test_binary_proxy_serializer():
+    with BytesIO() as handler:
+        proxy = BinaryProxySerializer(handler)
+        proxied = get_proxy(proxy)
+        assert proxied is handler
+
+
+class TestBinarySerializer:
+    @pytest.mark.parametrize("closable", [True, False])
+    @pytest.mark.parametrize("cacheable", [True, False, None])
+    def test_init(self, closable: bool, cacheable: Optional[bool]):
+        with BytesIO() as handle:
+            _ = BinarySerializer(handle, closable, cacheable)
+
+    def test_stream(self):
+        with BytesIO() as handle:
+            _ = BinarySerializer(handle)
+            assert _.stream is handle
+
+    @pytest.mark.parametrize("exact_size", [True, False])
+    def test_read_bytes(self, exact_size: bool):
+        buffer = b"bobloblaw"
+        with BytesIO(buffer) as handle:
+            _ = BinarySerializer(handle)
+            try:
+                read = _.read_bytes(0, 10, exact_size=exact_size)
+                assert read == buffer
+            except MismatchError:
+                if not exact_size:
+                    raise
+            else:
+                if exact_size:
+                    pytest.fail("Expected failure because size should have been exact")
+
+    def test_read_bytes_cached(self):
+        buffer = b"bobloblaw"
+        with BytesIO(buffer) as handle:
+            _ = BinarySerializer(handle, cacheable=True)
+            read = _.read_bytes(0, 9, exact_size=False)
+            assert read == buffer
+            __ = _.read_bytes(0, 9, exact_size=False)
+            assert (0, 9) in _._cache
+
+    @pytest.mark.parametrize("value", [b"bobloblaw"])
+    @pytest.mark.parametrize("exact_size", [True, False])
+    @pytest.mark.parametrize("err_size", [True, False])
+    def test_write_bytes_cached(self, value: bytes, exact_size: bool, err_size: bool):
+        with BytesIO(b"\0" * (len(value) + 1)) as handle:
+            _ = BinarySerializer(handle, cacheable=True)
+            try:
+                _.write_bytes(
+                    value,
+                    1,
+                    size=(len(value) - (1 if err_size else 0)) if exact_size else None,
+                )
+                result = _.read_bytes(1, len(value))
+                assert result == value
+            except MismatchError:
+                if not err_size or not exact_size:
+                    raise
+            else:
+                if err_size and exact_size:
+                    pytest.fail("Expected failure because size should have been wrong")
+
+
+def test_is_proxy():
+    with BytesIO() as h:
+        serializer = BinarySerializer(h)
+        is_prox = is_proxy(serializer)
+        assert is_prox is True
