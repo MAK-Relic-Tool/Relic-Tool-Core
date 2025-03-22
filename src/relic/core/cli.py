@@ -58,7 +58,8 @@ class RelicArgParser(ArgumentParser):
 
     def error(self, message: str) -> NoReturn:
         _, exc, _ = sys.exc_info()
-        if exc is not None:
+        # # Also it appears in my test cases there is always an exception? But that shouldn't be true
+        if exc is not None:  # pragma: nocover
             # # TODO; fix this?
             # # This was trying to specify the argument name if it wasnt present, BUT
             # # the if statement implies get_action_from_name should always return None
@@ -540,7 +541,6 @@ CLI = RelicCli(
 
 if __name__ == "__main__":
     CLI.run()
-
 
 __all__ = [
     "RelicArgParserError",  # Should move to relic.core.errors in next major

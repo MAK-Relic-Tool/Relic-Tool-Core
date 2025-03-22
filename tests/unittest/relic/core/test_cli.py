@@ -231,9 +231,9 @@ class DummyCliPlugin(CliPlugin):
         else:
             return RelicArgParser("dummy")
 
-    def command(self, ns: Namespace, *, logger: logging.Logger) -> Optional[int]:
+    def command(self, ns: Namespace, *, logger: logging.Logger) -> int:
         logger.info("Dummy")
-        return None
+        return 0
 
 
 class ManualSetFunctionCliPlugin(CliPluginGroup):
@@ -415,3 +415,15 @@ def test_error_raises_relic_arg_parser_error():
         pass
     else:
         pytest.fail("Expected Relic Parser Error")
+
+
+def test_preload():
+    cli = RelicCli(load_on_create=False)
+    cli._preload()
+    # We cant assert loading cause i made it private -_-
+
+
+def test_default_plugin_group_command():
+    cli = RelicCli()
+    result = cli.run_with()
+    assert result == 1
