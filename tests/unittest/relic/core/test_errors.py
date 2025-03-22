@@ -32,7 +32,7 @@ def _get_mismatch_message(name: str, received: Optional[Any], expected: Optional
         (None, "0920"),
     ],
 )
-class MismatchTests:
+class TestPrintMismatch:
     def test_print_mismatch(
         self, name: str, received: Optional[Any], expected: Optional[Any]
     ):
