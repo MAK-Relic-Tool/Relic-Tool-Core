@@ -1,8 +1,10 @@
 import contextlib
+import io
 import os
 import zlib
+from dataclasses import dataclass
 from io import BytesIO
-from typing import BinaryIO, Optional, Any, Tuple, TypeVar, Type
+from typing import BinaryIO, Optional, Any, Tuple, TypeVar, Type, Generator
 
 import pytest
 
@@ -475,3 +477,159 @@ def test_is_proxy():
         serializer = BinarySerializer(h)
         is_prox = is_proxy(serializer)
         assert is_prox is True
+
+
+class TestBinaryWrapper:
+
+    @pytest.fixture(params=[b"bobloblawblahblahblahDieForTheEmperor"])
+    def buffer(self, request) -> bytes:
+        yield request.param
+
+    @contextlib.contextmanager
+    def get_wrapper(
+        self, buffer: Optional[bytes] = None, close_parent: bool = True
+    ) -> Generator[Tuple[BytesIO, BinaryWrapper], None, None]:
+        with BytesIO(buffer or b"") as h:
+            with BinaryWrapper(h, close_parent=close_parent) as c:
+                yield h, c
+
+    @pytest.mark.parametrize("close_parent", [True, False])
+    def test_close(self, buffer: bytes, close_parent: bool):
+        with self.get_wrapper(buffer, close_parent) as (h, c):
+            c.close()
+            assert c.closed is True
+            if close_parent:
+                assert h.closed is True
+
+    def test_fileno(self, buffer: bytes):
+        with self.get_wrapper() as (_, c):
+            try:
+                c.fileno()
+            except io.UnsupportedOperation:
+                pass
+            else:
+                pytest.fail("Expected Unsupported Error")
+
+    def test_flush(self):
+        with self.get_wrapper() as (_, c):
+            c.flush()
+
+    def test_isatty(self):
+        with self.get_wrapper() as (_, c):
+            isatty = c.isatty()
+            assert isatty is False
+
+    def test_readable(self):
+        with self.get_wrapper() as (h, c):
+            assert c.readable() == h.readable()
+
+    @pytest.mark.parametrize("count", list(range(4)))
+    def test_readlines(self, buffer: bytes, count: int):
+        with self.get_wrapper() as (h, c):
+            now = c.tell()
+            c_line = c.readlines(count)
+            h.seek(now)
+            h_line = h.readlines(count)
+            assert c_line == h_line
+
+    @pytest.mark.parametrize("count", list(range(4)))
+    def test_readline(self, buffer: bytes, count: int):
+        with self.get_wrapper() as (h, c):
+            now = c.tell()
+            c_line = c.readline(count)
+            h.seek(now)
+            h_line = h.readline(count)
+            assert c_line == h_line
+
+    @pytest.mark.parametrize("count", list(range(4)))
+    def test_read(self, buffer: bytes, count: int):
+        with self.get_wrapper() as (h, c):
+            now = c.tell()
+            c_line = c.read(count)
+            h.seek(now)
+            h_line = h.readline(count)
+            assert c_line == h_line
+
+    def test_seekable(self, buffer: bytes):
+        with self.get_wrapper() as (h, c):
+            assert h.seekable() == c.seekable()
+
+    def test_writable(self, buffer: bytes):
+        with self.get_wrapper() as (h, c):
+            assert h.writable() == c.writable()
+
+    def test_truncate(self, buffer: bytes):
+        with self.get_wrapper(buffer) as (h, c):
+            half = len(buffer) // 2
+            c.truncate(half)
+            new_size = h.seek(0, os.SEEK_END)
+            assert new_size == half
+
+    def test_writelines(self, buffer: bytes):
+        with self.get_wrapper() as (h, c):
+            c.writelines([buffer])
+            b = h.getvalue()
+            assert b == buffer
+
+    def test_next(self, buffer: bytes):
+        with self.get_wrapper(buffer) as (h, c):
+            _ = next(c)
+            try:
+                __ = next(h)
+            except StopIteration:
+                pass
+            else:
+                pytest.fail(
+                    "Expected StopIteration, because both items map to the same object, next should only work once"
+                )
+
+    def test_iter(self, buffer: bytes):
+        with self.get_wrapper(buffer) as (h, c):
+            a = iter(c)
+            b = iter(h)
+            assert b == a
+
+    @pytest.mark.parametrize("read", [True, False])
+    @pytest.mark.parametrize("write", [True, False])
+    def test_mode_guess(self, read: bool, write: bool):
+        class Faker:
+            def readable(self):
+                return read
+
+            def writable(self):
+                return write
+
+        mode = 0
+        mode |= (1 << 0) if read else 0
+        mode |= (1 << 1) if write else 0
+
+        mode_table = {
+            1: "rb",
+            2: "wb",
+            3: "w+b",
+        }
+        expected_mode = mode_table.get(mode)
+
+        with BinaryWrapper(Faker(), close_parent=False) as w:  # type: ignore
+            try:
+                result_mode = w.mode
+            except RelicToolError as e:
+                if expected_mode is not None:
+                    raise
+            else:
+                if expected_mode is None:
+                    pytest.fail("Expected to raise RelicToolError")
+                assert result_mode == expected_mode
+
+    @pytest.mark.parametrize("mode", ["w+b", "rb", "wb"])
+    def test_mode(self, mode: str):
+        @dataclass
+        class Faker:
+            mode: str
+
+        with BinaryWrapper(Faker(mode), close_parent=False) as w:
+            assert w.mode == mode
+
+    def test_name(self):
+        with self.get_wrapper() as (_, w):
+            assert w.name is not None
