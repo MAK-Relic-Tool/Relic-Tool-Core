@@ -27,6 +27,7 @@ from relic.core.lazyio import (
     ZLibFileReader,
     BinaryProxy,
     is_proxy,
+    _SizedIntOps,
 )
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
@@ -633,3 +634,98 @@ class TestBinaryWrapper:
     def test_name(self):
         with self.get_wrapper() as (_, w):
             assert w.name is not None
+
+
+class TestSizedIntOps:
+
+    @pytest.fixture(params=[1, 2, 4, 8], ids=["Byte", "Short", "Int", "Long"])
+    def int_size(self, request) -> bytes:
+        yield request.param
+
+    @pytest.fixture(params=[True, False], ids=["Signed", "Unsigned"])
+    def int_signed(self, request) -> bool:
+        yield request.param
+
+    @pytest.fixture(params=["little", "big"])
+    def int_byteorder(self, request) -> str:
+        yield request.param
+
+    @pytest.fixture()
+    def get_ops(self, int_signed: bool, int_size: int):
+        def wrapped(stream: BinaryIO):
+            return _SizedIntOps(BinarySerializer(stream), int_size, int_signed)
+
+        return wrapped
+
+    @pytest.fixture()
+    def get_buffer(self, int_signed: bool, int_size: int, int_byteorder: str):
+        def wrapped(value: int):
+            return value.to_bytes(length=int_size, signed=int_signed, byteorder=int_byteorder)  # type: ignore
+
+        return wrapped
+
+    @pytest.fixture()
+    def get_value(self, int_signed: bool, int_byteorder: str):
+        def wrapped(buffer: bytes):
+            return int.from_bytes(buffer, signed=int_signed, byteorder=int_byteorder)  # type: ignore
+
+        return wrapped
+
+    @pytest.mark.parametrize("value", list(range(0, 128, 16)))
+    def test_read(self, value: int, get_buffer, get_ops, int_byteorder: str):
+
+        buffer = get_buffer(value)
+        padded_buffer = b"\0" + buffer
+        with BytesIO(padded_buffer) as stream:
+            ops = get_ops(stream)
+            result = ops.read(1, byteorder=int_byteorder)
+            assert result == value
+
+        with BytesIO(padded_buffer) as stream2:
+            ops2 = get_ops(stream2)
+            if int_byteorder == "little":
+                result2 = ops2.read_le(1)
+            else:
+                result2 = ops2.read_be(1)
+            assert result2 == value
+
+    def test_validate_args(self, int_signed, int_size, get_ops):
+        with BytesIO() as h:
+            ops = get_ops(h)
+            try:
+                ops._validate_args(int_size + 1, None)
+            except MismatchError:
+                pass
+            else:
+                pytest.fail("Validate failed to catch bad Size")
+            try:
+                ops._validate_args(None, not int_signed)
+            except MismatchError:
+                pass
+            else:
+                pytest.fail("Validate failed to catch bad Sign")
+            try:
+                ops._validate_args(int_size + 1, not int_signed)
+            except MismatchError:
+                pass
+            else:
+                pytest.fail("Validate failed to catch bad Sign AND bad Size")
+
+    @pytest.mark.parametrize("value", list(range(0, 128, 16)))
+    def test_write(
+        self, value: int, get_buffer, get_ops, int_size: int, int_byteorder: str
+    ):
+        buffer = get_buffer(value)
+        padded_buffer = b"\0" * (int_size + 1)
+        with BytesIO(padded_buffer) as stream:
+            ops = get_ops(stream)
+            ops.write(value, 1, byteorder=int_byteorder)
+            result = stream.getvalue()[1:]
+            assert result == buffer
+
+            if int_byteorder == "little":
+                ops.write_le(value, 1)
+            else:
+                ops.write_be(value, 1)
+                result2 = stream.getvalue()[1:]
+                assert result2 == buffer
