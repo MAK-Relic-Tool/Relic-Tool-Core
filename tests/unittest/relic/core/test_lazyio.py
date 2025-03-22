@@ -776,3 +776,67 @@ class TestIntOps:
             pass
         else:
             pytest.fail("Expected MismatchError")
+
+
+class TestBinaryWindow:
+
+    @contextlib.contextmanager
+    def _get_window(self, buffer: bytes, start: int, size: int):
+        with BytesIO(buffer) as h:
+            yield BinaryWindow(h, start, size)
+
+    def test_end(self):
+        with self._get_window(b"8675309", 4, 3) as window:
+            assert window._end == 7
+
+    def test_tell(self):
+        with self._get_window(b"8675309", 4, 3) as window:
+            assert window.tell() == 0
+
+    @pytest.mark.parametrize("when", [os.SEEK_SET, os.SEEK_CUR, os.SEEK_END, -1])
+    def test_seek(self, when: int):
+        with BytesIO(b"nopeblahfire") as h:
+            h.seek(5)
+            with BinaryWindow(h, 4, 4) as window:
+                if when == os.SEEK_SET:
+                    window.seek(0, when)
+                    assert h.tell() == 4
+                elif when == os.SEEK_CUR:
+                    window.seek(2, when)
+                    assert (
+                        h.tell() == 6
+                    )  # Doesn't use parent pointer, uses an internal pointer
+                elif when == os.SEEK_END:
+                    window.seek(0, when)
+                    assert h.tell() == 8
+                else:
+                    try:
+                        window.seek(0, when)
+                    except ValueError:
+                        pass
+                    else:
+                        pytest.fail("Expected a ValueError due ot invalid seek target")
+
+    def test_seek_invalid(self):
+        with self._get_window(b"blah", 1, 1) as window:
+            try:
+                window.seek(-1)
+            except RelicToolError:
+                pass
+            else:
+                pytest.fail("Expected a RelicToolError to be raised")
+
+    def test_read_clamped(self):
+        with self._get_window(b"\0\0xd", 2, 2) as window:
+            result = window.read(5)
+            assert result == b"xd"
+
+    def test_read_remaining(self):
+        with self._get_window(b"\0\0xd", 2, 2) as window:
+            result = window.read(-1)
+            assert result == b"xd"
+
+    def test_read_minimal(self):
+        with self._get_window(b"\0\0xd", 2, 2) as window:
+            result = window.read(1)
+            assert result == b"x"
