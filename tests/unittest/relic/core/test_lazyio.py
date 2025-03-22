@@ -15,6 +15,10 @@ from relic.core.lazyio import (
     CStringConverter,
     IntConverter,
     ByteConverter,
+    BinaryProxySerializer,
+    chunk_copy,
+    read_chunks,
+    get_proxy,
 )
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
@@ -136,15 +140,12 @@ T = TypeVar("T")
     ],
 )
 class TestBinaryProperty:
-    class FakeSerializer:
-        def __init__(self, stream: BinaryIO):
-            self._serializer = stream
 
     @classmethod
     @contextlib.contextmanager
     def get_serializer(cls, buffer: bytes) -> Any:
         with BytesIO(buffer) as stream:
-            yield cls.FakeSerializer(stream)
+            yield BinaryProxySerializer(stream)
 
     def test_get(
         self,
@@ -186,7 +187,10 @@ class TestBinaryProperty:
                 else:
                     assert isinstance(e, err)
             else:
-                assert inst._serializer.getvalue() == buffer
+                proxy = get_proxy(inst._serializer)
+                proxy.seek(0)
+                read = proxy.read()
+                assert read == buffer
 
 
 @pytest.mark.parametrize(
@@ -205,3 +209,101 @@ class TestConstProperty:
             assert e == err
         else:
             pytest.fail("Const Property should have raised err when writing")
+
+
+@contextlib.contextmanager
+def opt_stream(buf: bytes | bytearray, is_stream: bool):
+    if is_stream:
+        with BytesIO(buf) as h:
+            yield h
+    else:
+        yield buf
+
+
+@pytest.mark.parametrize(
+    [
+        "src",
+        "dest",
+        "src_start",
+        "size",
+        "dest_start",
+        "src_is_stream",
+        "dest_is_stream",
+        "err",
+    ],
+    [
+        (b"\1deadbeef", b"\0deadbeef", 1, 8, 1, False, False, RelicToolError),
+        (b"\1deadbeef", bytearray(b"\0deadbeef"), 1, 8, 1, False, False, None),
+        (b"\1deadbeef", bytearray(b"deadbeef"), 1, 8, 0, False, False, None),
+        (b"\1deadbeef", bytearray(b"\0deadbeef"), 1, 8, 1, True, False, None),
+        (b"\1deadbeef", bytearray(b"deadbeef"), 1, 8, 0, True, False, None),
+        (b"\1deadbeef", b"\0deadbeef", 1, 8, 1, False, True, None),
+        (b"\1deadbeef", b"deadbeef", 1, 8, 0, False, True, None),
+        (b"\1deadbeef", b"\0deadbeef", 1, 8, 1, True, True, None),
+        (b"\1deadbeef", b"deadbeef", 1, 8, 0, True, True, None),
+        (b"lemenruss", bytearray(b"lemenruss"), None, 9, None, False, False, None),
+        (b"\1backboneof", bytearray(b"backboneof"), 1, 10, None, False, False, None),
+        (b"\1theguard", b"theguard", 1, 8, None, False, True, None),
+    ],
+)
+def test_chunk_copy(
+    src: bytes | bytearray,
+    dest: bytes | bytearray,
+    src_start: int | None,
+    size: int | None,
+    dest_start: int | None,
+    src_is_stream: bool,
+    dest_is_stream: bool,
+    err: Type[RelicToolError],
+):
+    with opt_stream(src, src_is_stream) as copy_src:
+        empty_dest = b"\0" * len(dest)
+        empty_dest = (
+            bytearray(empty_dest) if isinstance(dest, bytearray) else empty_dest
+        )
+        with opt_stream(empty_dest, dest_is_stream) as copy_dest:
+            try:
+                chunk_copy(copy_src, copy_dest, src_start, size, dest_start)
+                if isinstance(copy_dest, BytesIO):
+                    result = copy_dest.getvalue()
+                else:
+                    result = copy_dest
+                assert result == dest
+
+            except Exception as e:
+                if not err:
+                    raise
+                else:
+                    assert isinstance(e, err)
+            else:
+                if err:
+                    pytest.fail("Expected an error")
+
+
+@pytest.mark.parametrize(
+    ["stream", "start", "size", "make_stream", "result"],
+    [
+        [b"BloodForTheBloodGod", 16, 3, False, b"God"],
+        [b"BloodForTheBloodGod", None, 5, False, b"Blood"],
+        [b"BloodForTheBloodGod", 5, None, False, b"ForTheBloodGod"],
+        [b"BloodForTheBloodGod", None, None, False, b"BloodForTheBloodGod"],
+        [b"BloodForTheBloodGod", 16, 3, True, b"God"],
+        [b"BloodForTheBloodGod", None, 5, True, b"Blood"],
+        [b"BloodForTheBloodGod", 5, None, True, b"ForTheBloodGod"],
+        [b"BloodForTheBloodGod", None, None, True, b"BloodForTheBloodGod"],
+        [bytearray(b"BloodForTheBloodGod"), 16, 3, True, b"God"],
+        [bytearray(b"BloodForTheBloodGod"), None, 5, True, b"Blood"],
+        [bytearray(b"BloodForTheBloodGod"), 5, None, True, b"ForTheBloodGod"],
+        [bytearray(b"BloodForTheBloodGod"), None, None, True, b"BloodForTheBloodGod"],
+        [b"BloodForTheBloodGod", None, 64, True, b"BloodForTheBloodGod"],
+    ],
+)
+def test_read_chunks(
+    stream: Any, start: int | None, size: int | None, make_stream: bool, result: bytes
+):
+    with opt_stream(stream, make_stream) as reader:
+        with BytesIO() as writer:
+            for chunk in read_chunks(reader, start, size):
+                writer.write(chunk)
+            buffer = writer.getvalue()
+            assert buffer == result
