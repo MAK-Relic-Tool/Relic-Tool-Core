@@ -1,4 +1,6 @@
 import contextlib
+import os
+import zlib
 from io import BytesIO
 from typing import BinaryIO, Optional, Any, Tuple, TypeVar, Type
 
@@ -19,6 +21,8 @@ from relic.core.lazyio import (
     chunk_copy,
     read_chunks,
     get_proxy,
+    tell_end,
+    ZLibFileReader,
 )
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
@@ -307,3 +311,93 @@ def test_read_chunks(
                 writer.write(chunk)
             buffer = writer.getvalue()
             assert buffer == result
+
+
+@pytest.mark.parametrize("buffer", [b"bob\0lob\1law\2", b"blahblahblah"])
+@pytest.mark.parametrize("start_pos", [0, 6, 12])
+def test_tell_end(buffer: bytes, start_pos: int):
+    with BytesIO(buffer) as stream:
+        stream.seek(start_pos)
+        expected_end = len(buffer)
+        end = tell_end(stream)
+        assert end == expected_end
+        now = stream.tell()
+        expected_now = start_pos
+        assert now == expected_now
+
+
+def _zcomp(b: bytes):
+    return zlib.compress(b)
+
+
+@pytest.mark.parametrize(
+    "buffer",
+    [
+        b"LoremIpsum\0\1\2\3BobLobLaw\4\5\6\7ForTheEmperor\x08\x09\x0A\x0BDeathToTheEmporer\x0C\x0D\x0E\x0F"
+    ],
+)
+class TestZlibFileReader:
+    def test_init(self, buffer: bytes):
+        with BytesIO(buffer) as stream:
+            _ = ZLibFileReader(stream)
+
+    def test_remaining(self, buffer: bytes):
+        with BytesIO(_zcomp(buffer)) as stream:
+            _ = ZLibFileReader(stream)
+            now = len(buffer) // 2
+            remaining = len(buffer) - now
+            _._now = now  # cheat
+            assert _._remaining == remaining
+
+    def test_read(self, buffer: bytes):
+        with BytesIO(_zcomp(buffer)) as stream:
+            _ = ZLibFileReader(stream)
+            read_size = len(buffer) // 2
+            expected = buffer[:read_size]
+            result = _.read(read_size)
+            assert result == expected
+
+    @pytest.mark.parametrize("when", [os.SEEK_SET, os.SEEK_CUR, os.SEEK_END, -1])
+    def test_seek(self, buffer: bytes, when: int):
+        with BytesIO(_zcomp(buffer)) as stream:
+            _ = ZLibFileReader(stream)
+            fake_now = _._now = len(buffer) // 2
+            try:
+
+                now = _.seek(0, when)
+                if when == os.SEEK_SET:
+                    assert now == 0
+                elif when == os.SEEK_CUR:
+                    assert now == fake_now
+                elif when == os.SEEK_END:
+                    assert _._remaining == 0
+            except ValueError as e:
+                if when not in [os.SEEK_SET, os.SEEK_CUR, os.SEEK_END]:
+                    pass
+                else:
+                    raise e
+            else:
+                if when not in [os.SEEK_SET, os.SEEK_CUR, os.SEEK_END]:
+                    pytest.fail("Expected failure because when was not a valid value")
+
+    @pytest.mark.parametrize("when", [os.SEEK_SET, os.SEEK_CUR, os.SEEK_END])
+    def test_tell(self, buffer: bytes, when: int):
+        with BytesIO(_zcomp(buffer)) as stream:
+            _ = ZLibFileReader(stream)
+            fake_now = _._now = len(buffer) // 2
+            _.seek(0, when)
+            now = _.tell()
+            if when == os.SEEK_SET:
+                assert now == 0
+            elif when == os.SEEK_CUR:
+                assert now == fake_now
+            elif when == os.SEEK_END:
+                assert _._remaining == 0
+            else:
+                pytest.fail("Expected failure because when was not a valid value")
+
+    def test_writeable(self, buffer: bytes):
+        with BytesIO(_zcomp(buffer)) as stream:
+            _ = ZLibFileReader(stream)
+            writable = _.writable()
+            assert writable is False

@@ -680,6 +680,9 @@ class BinaryProxySerializer(BinaryProxy):  # pylint: disable= R0903
         return self._serializer
 
 
+# This was definitely used for compressed chunks in SGA
+# But SGA now handles that by decompressing the blob so we can write directly to it, right?
+# Deprecate?
 class ZLibFileReader(BinaryWrapper):
     """
     A wrapper which lazily reads a Z-Lib compressed file.
