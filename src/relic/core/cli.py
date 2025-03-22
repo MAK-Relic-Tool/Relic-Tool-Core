@@ -38,11 +38,11 @@ LOGLEVEL_TABLE = {
 }
 
 
-def _arg_exists_err(value: str) -> argparse.ArgumentTypeError:
+def get_arg_exists_err(value: str) -> argparse.ArgumentTypeError:
     return argparse.ArgumentTypeError(f"The given path '{value}' does not exist!")
 
 
-def _get_path_validator(exists: bool) -> Callable[[str], str]:
+def get_path_validator(exists: bool) -> Callable[[str], str]:
     def _path_type(path: str) -> str:
         path = os.path.abspath(path)
 
@@ -50,20 +50,15 @@ def _get_path_validator(exists: bool) -> Callable[[str], str]:
             parent, _ = os.path.split(_path)
 
             if len(parent) != 0 and parent != _path:
-                return _step(parent)
+                _step(parent)
 
-            if not os.path.exists(parent):
-                return None
-
-            if os.path.isfile(parent):
+            if os.path.exists(parent) and os.path.isfile(parent):
                 raise argparse.ArgumentTypeError(
                     f"The given path '{path}' is not a valid path; it treats a file ({parent}) as a directory!"
                 )
 
-            return None
-
         if exists and not os.path.exists(path):
-            raise _arg_exists_err(path)
+            raise get_arg_exists_err(path)
 
         _step(path)  # we want step to validate; but we dont care about its result
 
@@ -72,14 +67,14 @@ def _get_path_validator(exists: bool) -> Callable[[str], str]:
     return _path_type
 
 
-def _get_dir_type_validator(exists: bool) -> Callable[[str], str]:
-    validate_path = _get_path_validator(False)
+def get_dir_type_validator(exists: bool) -> Callable[[str], str]:
+    validate_path = get_path_validator(False)
 
     def _dir_type(path: str) -> str:
         path = os.path.abspath(path)
         if not os.path.exists(path):
             if exists:
-                raise _arg_exists_err(path)
+                raise get_arg_exists_err(path)
             return validate_path(path)
 
         if os.path.isdir(path):
@@ -90,14 +85,14 @@ def _get_dir_type_validator(exists: bool) -> Callable[[str], str]:
     return _dir_type
 
 
-def _get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
-    validate_path = _get_path_validator(False)
+def get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
+    validate_path = get_path_validator(False)
 
     def _file_type(path: str) -> str:
         path = os.path.abspath(path)
         if not os.path.exists(path):
             if exists:
-                raise _arg_exists_err(path)
+                raise get_arg_exists_err(path)
             return validate_path(path)
 
         if os.path.isfile(path):
@@ -109,7 +104,7 @@ def _get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
 
 
 @dataclass
-class LogingOptions:
+class LoggingOptions:
     log_file: Optional[str]
     log_level: int
     log_config: Optional[str]
@@ -121,7 +116,7 @@ def _add_logging_to_parser(
     """Adds [-l --log] and [-ll --loglevel] commands."""
     parser.add_argument(
         "--log",
-        type=_get_file_type_validator(False),
+        type=get_file_type_validator(False),
         help="Path to the log file, if one is generated",
         nargs="?",
         required=False,
@@ -137,7 +132,7 @@ def _add_logging_to_parser(
     )
     parser.add_argument(
         "--logconfig",
-        type=_get_file_type_validator(True),
+        type=get_file_type_validator(True),
         help="Path to a logging config file.",
         nargs="?",
         required=False,
@@ -151,12 +146,12 @@ def create_logger_from_namespace(ns: Namespace) -> logging.Logger:
     return logger
 
 
-def _extract_logging_from_namespace(ns: Namespace) -> LogingOptions:
+def _extract_logging_from_namespace(ns: Namespace) -> LoggingOptions:
     log_file: Optional[str] = ns.log
     log_level_name: str = ns.loglevel
     log_level = LOGLEVEL_TABLE[log_level_name]
     log_config: Optional[str] = ns.logconfig
-    return LogingOptions(log_file, log_level, log_config)
+    return LoggingOptions(log_file, log_level, log_config)
 
 
 def _create_log_formatter() -> logging.Formatter:
@@ -200,7 +195,7 @@ def _create_console_handlers(
 
 
 def setup_logging_for_cli(
-    options: LogingOptions,
+    options: LoggingOptions,
     print_log: bool = True,
     logger: Optional[logging.Logger] = None,
 ) -> None:
@@ -371,8 +366,6 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         parent: Optional[_SubParsersAction] = None,
         load_on_create: bool = True,
     ):
-        if TYPE_CHECKING:
-            self.subparsers = None
         if self.GROUP is None:
             raise ValueError
         parser = self._create_parser(parent)
@@ -414,7 +407,7 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        for ep in entry_points().select(group=self.GROUP):
+        for ep in entry_points().select(group=self.GROUP):  # pragma: nocover
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
