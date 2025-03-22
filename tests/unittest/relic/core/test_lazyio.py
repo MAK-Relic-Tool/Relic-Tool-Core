@@ -29,6 +29,7 @@ from relic.core.lazyio import (
     is_proxy,
     _SizedIntOps,
     _IntOps,
+    _CStringOps,
 )
 
 _TestBinaryWrapper_AutoNamed = [BytesIO()]
@@ -840,3 +841,60 @@ class TestBinaryWindow:
         with self._get_window(b"\0\0xd", 2, 2) as window:
             result = window.read(1)
             assert result == b"x"
+
+
+class TestCStringOps:
+    @contextlib.contextmanager
+    def get_ops(self, buffer: Optional[bytes] = None):
+        with BytesIO(buffer or b"") as stream:
+            yield stream, _CStringOps(BinarySerializer(stream))
+
+    def test_read(self):
+        buf = "TheBaneBlade"
+        with self.get_ops(buf.encode("ascii")) as (_, ops):
+            result = ops.read(0, len(buf), encoding="ascii")
+            assert result == buf
+
+    def test_write(self):
+        buf = "TheBaneBlade"
+        with self.get_ops() as (s, ops):
+            ops.write(buf, 0, len(buf), encoding="ascii")
+            exp_buf = buf.encode("ascii")
+            result = s.getvalue()
+            assert result == exp_buf
+
+    def test_padded_read(self):
+        buf = "TheBaneBlade"
+        with self.get_ops(buf.encode("ascii") + b"\0\0") as (_, ops):
+            result = ops.read(0, len(buf) + 2, encoding="ascii", padding="\0")
+            assert result == buf
+
+    def test_padded_write(self):
+        buf = "TheBaneBlade"
+        with self.get_ops() as (s, ops):
+            ops.write(buf, 0, len(buf) + 2, encoding="ascii", padding="\0")
+            exp_buf = buf.encode("ascii") + b"\0\0"
+            result = s.getvalue()
+            assert result == exp_buf
+
+    def test_pack_pad_failure(self):
+        try:
+            _CStringOps.pack("Faker", "ascii", 6, "\0\0")
+        except RelicToolError:
+            pass
+        else:
+            pytest.fail("Expected a RelicToolError because padding size did not match")
+
+    def test_pack_size_failure(self):
+        try:
+            _CStringOps.pack("Faker", "ascii", 6)
+        except MismatchError:
+            pass
+        else:
+            pytest.fail("Expected a MismatchError because padding size did not match")
+
+    def test_pack_no_size(self):
+        buffer = "Faker"
+        expected = buffer.encode("ascii")
+        result = _CStringOps.pack(buffer, "ascii", None)
+        assert result == expected
