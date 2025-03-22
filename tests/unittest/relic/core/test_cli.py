@@ -5,6 +5,7 @@ import sys
 from argparse import ArgumentParser, Namespace
 from os.path import basename
 from typing import Any, Optional, Type
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -19,8 +20,10 @@ from relic.core.cli import (
     get_file_type_validator,
     get_dir_type_validator,
     get_path_validator,
-    LoggingOptions,
+    CliLoggingOptions,
     RelicArgParser,
+    LogSetupOptions,
+    _CliPlugin,
 )
 from relic.core.errors import RelicArgParserError, UnboundCommandError
 from tests.util import TempFileHandle
@@ -82,7 +85,7 @@ def test_setup_logging_for_cli(
                     )
 
                 ...  # Generate Config
-            opt = LoggingOptions(
+            opt = CliLoggingOptions(
                 log_level=logging.DEBUG,
                 log_config=None if not specify_log_config else logconfig.path,
                 log_file=None if not specify_log_file else logfile.path,
@@ -378,7 +381,7 @@ format=%(levelname)s:%(asctime)s - %(message)s
 level=DEBUG
 handlers=h0"""
                     )
-            options = LoggingOptions(
+            options = CliLoggingOptions(
                 log_file=log_file_h.path,
                 log_level=logging.DEBUG,
                 log_config=log_cfg_h.path,
@@ -427,3 +430,27 @@ def test_default_plugin_group_command():
     cli = RelicCli()
     result = cli.run_with()
     assert result == 1
+
+
+def test_cli_setup_log_options():
+    with apply_logging_handlers(
+        CliLoggingOptions(None, logging.DEBUG, None),
+        setup_options=LogSetupOptions(use_root=False, add_handlers=False),
+    ) as logger:
+        exp_logger = logging.getLogger("relic.core.cli")
+        assert logger == exp_logger
+        assert len(logger.handlers) == 0
+
+
+@pytest.mark.parametrize("cli", [RelicCli(), FakeCliPlugin()])
+def test_run_accepts_logger_and_options(cli: _CliPlugin):
+    with mock.patch.object(sys, "argv", ["relic", "-h"]):
+        try:
+            cli.run(logger=None, log_setup_options=None)
+        except SystemExit:
+            pass
+    cli.run_with("-h", logger=None, log_setup_options=None)
+    try:
+        cli._run(Namespace(), None, logger=None, log_setup_options=None)
+    except UnboundCommandError:
+        pass

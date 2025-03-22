@@ -32,6 +32,12 @@ from relic.core.errors import UnboundCommandError, RelicArgParserError
 from relic.core.typeshed import entry_points
 
 
+@dataclass
+class LogSetupOptions:
+    use_root: bool = True
+    add_handlers: bool = True
+
+
 class RelicArgParser(ArgumentParser):
     """
     Custom ArgParser with special error handling
@@ -147,7 +153,7 @@ def get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
 
 
 @dataclass
-class LoggingOptions:
+class CliLoggingOptions:
     log_file: Optional[str]
     log_level: int
     log_config: Optional[str]
@@ -184,19 +190,23 @@ def _add_logging_to_parser(
 
 @contextmanager
 def setup_cli_logging(
-    ns: Namespace, logger: Optional[logging.Logger] = None
+    ns: Namespace,
+    logger: Optional[logging.Logger] = None,
+    options: Optional[LogSetupOptions] = None,
 ) -> Generator[logging.Logger, None, None]:
-    options = _extract_logging_from_namespace(ns)
-    with apply_logging_handlers(options, logger=logger) as cli_logger:
+    ns_options = _extract_logging_from_namespace(ns)
+    with apply_logging_handlers(
+        cli_options=ns_options, print_log=True, logger=logger, setup_options=options
+    ) as cli_logger:
         yield cli_logger
 
 
-def _extract_logging_from_namespace(ns: Namespace) -> LoggingOptions:
+def _extract_logging_from_namespace(ns: Namespace) -> CliLoggingOptions:
     log_file: Optional[str] = ns.log
     log_level_name: str = ns.loglevel
     log_level = LOGLEVEL_TABLE[log_level_name]
     log_config: Optional[str] = ns.logconfig
-    return LoggingOptions(log_file, log_level, log_config)
+    return CliLoggingOptions(log_file, log_level, log_config)
 
 
 def _create_log_formatter() -> logging.Formatter:
@@ -241,29 +251,45 @@ def _create_console_handlers(
 
 @contextmanager
 def apply_logging_handlers(
-    options: LoggingOptions,
+    cli_options: CliLoggingOptions,
     print_log: bool = True,
     logger: Optional[logging.Logger] = None,
+    setup_options: Optional[LogSetupOptions] = None,
 ) -> Generator[logging.Logger, None, None]:
-    logger = logger or logging.getLogger()  # Root logger
-    # Run first to override other loggers
-    if options.log_config is not None:
-        fileConfig(options.log_config)
+    if setup_options is None:
+        setup_options = LogSetupOptions()
 
-    logger.setLevel(options.log_level)
+    if logger is None:
+        # File will always be relic.cli
+        logger = (
+            logging.getLogger()
+            if setup_options.use_root
+            else logging.getLogger(__name__)
+        )
 
     handlers: List[logging.Handler] = []
-    if options.log_file is not None:
-        h_log_file = _create_file_handler(options.log_file, options.log_level)
-        logger.addHandler(h_log_file)
-        handlers.append(h_log_file)
+    if setup_options.add_handlers:
+        # Run first to override other loggers
+        if cli_options.log_config is not None:
+            fileConfig(cli_options.log_config)  # Kind-of a logging poison pill
 
-    if print_log:
-        h_out, h_err = _create_console_handlers(options.log_level, logging.WARNING)
-        logger.addHandler(h_out)
-        logger.addHandler(h_err)
-        handlers.append(h_out)
-        handlers.append(h_err)
+        logger.setLevel(cli_options.log_level)
+
+        if cli_options.log_file is not None:
+            h_log_file = _create_file_handler(
+                cli_options.log_file, cli_options.log_level
+            )
+            logger.addHandler(h_log_file)
+            handlers.append(h_log_file)
+
+        if print_log:
+            h_out, h_err = _create_console_handlers(
+                cli_options.log_level, logging.WARNING
+            )
+            logger.addHandler(h_out)
+            logger.addHandler(h_err)
+            handlers.append(h_out)
+            handlers.append(h_err)
     try:
         yield logger
     finally:
@@ -327,6 +353,7 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         argv: Optional[Sequence[str]] = None,
         *,
         logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
     ) -> int:
         """
         Run the command using args provided by namespace
@@ -356,14 +383,17 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if not hasattr(ns, "function"):
             raise UnboundCommandError(cmd)
         func = ns.function
-        with setup_cli_logging(ns, logger) as cli_logger:
+        with setup_cli_logging(ns, logger, log_setup_options) as cli_logger:
             result: Optional[int] = func(ns, logger=cli_logger)
         if result is None:  # Assume success
             result = 0
         return result
 
     def run_with(
-        self, *args: str, logger: Optional[logging.Logger] = None
+        self,
+        *args: str,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
     ) -> Union[str, int, None]:
         """
         Run the command line interface with the given arguments.
@@ -378,11 +408,18 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
             args = args[1:]  # allow prog to be first command
         try:
             ns = self.parser.parse_args(args)
-            return self._run(ns, argv, logger=logger)
+            return self._run(
+                ns, argv, logger=logger, log_setup_options=log_setup_options
+            )
         except SystemExit as sys_exit:  # Do not capture the exit
             return sys_exit.code
 
-    def run(self) -> None:
+    def run(
+        self,
+        *,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> None:
         """
         Run the command line interface, using arguments from sys.argv, then terminates the process.
 
@@ -391,7 +428,9 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         """
         try:
             ns = self.parser.parse_args()
-            exit_code = self._run(ns, sys.argv)
+            exit_code = self._run(
+                ns, sys.argv, logger=logger, log_setup_options=log_setup_options
+            )
             sys.exit(exit_code)
         except RelicArgParserError as e:
             _print_error(self.parser, e.args[0])
@@ -440,15 +479,25 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         self.load_plugins()
         self.__loaded = True
 
-    def run(self) -> None:
+    def run(
+        self,
+        *,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> None:
         self._preload()
-        return super().run()
+        return super().run(logger=logger, log_setup_options=log_setup_options)
 
     def run_with(
-        self, *args: str, logger: Optional[logging.Logger] = None
+        self,
+        *args: str,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
     ) -> Union[str, int, None]:
         self._preload()
-        return super().run_with(*args, logger=logger)
+        return super().run_with(
+            *args, logger=logger, log_setup_options=log_setup_options
+        )
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
