@@ -29,9 +29,9 @@ from relic.core.errors import RelicArgParserError, UnboundCommandError
 from tests.util import TempFileHandle
 
 EXISTS_FILE_PATH = __file__
-EXISTS_FOLD_PATH = os.path.join(__file__, "..")
-INVALID_DIR_PATH = os.path.join(__file__, "doesnotexist.txt")
-NONEXIST_PATH = os.path.join(__file__, "..\\doesnotexist.txt")
+EXISTS_FOLD_PATH = os.path.abspath(os.path.join(__file__, ".."))
+INVALID_DIR_PATH = os.path.abspath(os.path.join(__file__, "doesnotexist.txt"))
+NONEXIST_PATH = os.path.abspath(os.path.join(__file__, "..","doesnotexist.txt"))
 
 
 @pytest.mark.parametrize(
