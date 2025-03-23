@@ -52,6 +52,14 @@ class RelicToolError(Exception):
     """
 
 
+class RelicInputFileError(RelicToolError):
+    """
+    An non critical error was raised during input file parsing. 
+
+    All non critical error raised during input file handling in this library and it's plugins should inherit from this class. Only error message without trace is logged. 
+    """
+
+
 class CliError(RelicToolError):
     """
     An error was raised by the command line interface.
@@ -75,7 +83,7 @@ class UnboundCommandError(CliError):
         return f"The '{self._name}' command was defined, but not bound to a function."
 
 
-class MismatchError(Generic[_T], RelicToolError):
+class MismatchError(Generic[_T], RelicInputFileError):
     """
     An error where a received value did not match the expected value.
     """
@@ -100,7 +108,7 @@ class MagicMismatchError(MismatchError[bytes]):
     """
 
 
-class RelicSerializationError(RelicToolError):
+class RelicSerializationError(RelicInputFileError):
     """
     An error was raised while serializing an object.
     """
@@ -130,6 +138,7 @@ class RelicArgParserError(Exception):
 
 __all__ = [
     "RelicToolError",
+    "RelicInputFileError",
     "MismatchError",
     "MagicMismatchError",
     "CliError",

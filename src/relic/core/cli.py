@@ -28,7 +28,7 @@ from typing import (
     List,
 )
 
-from relic.core.errors import UnboundCommandError, RelicArgParserError
+from relic.core.errors import UnboundCommandError, RelicArgParserError, RelicInputFileError
 from relic.core.typeshed import entry_points
 
 
@@ -410,8 +410,12 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if not hasattr(ns, "function"):
             raise UnboundCommandError(cmd)
         func = ns.function
+        result: Optional[int] = None
         with setup_cli_logging(ns, logger, log_setup_options) as cli_logger:
-            result: Optional[int] = func(ns, logger=cli_logger)
+            try:
+                result = func(ns, logger=cli_logger)
+            except RelicInputFileError as error:
+                cli_logger.info(f"relic: {error}")
         if result is None:  # Assume success
             result = 0
         return result
