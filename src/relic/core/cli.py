@@ -28,7 +28,11 @@ from typing import (
     List,
 )
 
-from relic.core.errors import UnboundCommandError, RelicArgParserError, RelicInputFileError
+from relic.core.errors import (
+    UnboundCommandError,
+    RelicArgParserError,
+    RelicInputFileError,
+)
 from relic.core.typeshed import entry_points
 
 

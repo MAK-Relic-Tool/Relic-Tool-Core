@@ -54,9 +54,10 @@ class RelicToolError(Exception):
 
 class RelicInputFileError(RelicToolError):
     """
-    An non critical error was raised during input file parsing. 
+    An non critical error was raised during input file parsing.
 
-    All non critical error raised during input file handling in this library and it's plugins should inherit from this class. Only error message without trace is logged. 
+    All non critical error raised during input file handling in this library and it's plugins should inherit
+    from this class. Only error message without trace is logged.
     """
 
 
