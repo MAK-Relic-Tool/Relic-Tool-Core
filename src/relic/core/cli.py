@@ -620,10 +620,15 @@ if __name__ == "__main__":
 
 __all__ = [
     "RelicArgParserError",  # Should move to relic.core.errors in next major
-    # Should move to relic.core.errors in next major
     "CLI",
     "CliPlugin",
     "CliPluginGroup",
     "CliEntrypoint",
     "RelicCli",
+    "LogSetupOptions"
+    "RelicArgParser"
+    "get_path_validator"
+    "get_dir_type_validator"
+    "get_file_type_validator"
+    "CliLoggingOptions",
 ]
