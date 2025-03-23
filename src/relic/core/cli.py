@@ -71,13 +71,16 @@ class RelicArgParser(ArgumentParser):
         # # Also it appears in my test cases there is always an exception? But that shouldn't be true
         if exc is not None:  # pragma: nocover
             # # TODO; fix this?
-            # # This was trying to specify the argument name if it wasnt present, BUT
+            # # This was trying to specify the argument name if it wasn't present, BUT
             # # the if statement implies get_action_from_name should always return None
             # # So something isn't working here, but what?
             # if isinstance(exc, ArgumentError) and exc.argument_name is None:
             #     action = self._get_action_from_name(exc.argument_name)
             #     exc.argument_name = action  # type:ignore
-            raise exc
+            if isinstance(exc, ArgumentError):
+                raise exc
+            else:
+                raise RelicArgParserError(message) from exc
         raise RelicArgParserError(message)
 
 

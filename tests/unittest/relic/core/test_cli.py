@@ -4,7 +4,7 @@ import os
 import sys
 from argparse import ArgumentParser, Namespace
 from os.path import basename
-from typing import Any, Optional, Type, Union
+from typing import Any, Optional, Type, Union, NoReturn
 from unittest import mock
 from unittest.mock import patch
 
@@ -31,7 +31,7 @@ from tests.util import TempFileHandle
 EXISTS_FILE_PATH = __file__
 EXISTS_FOLD_PATH = os.path.abspath(os.path.join(__file__, ".."))
 INVALID_DIR_PATH = os.path.abspath(os.path.join(__file__, "doesnotexist.txt"))
-NONEXIST_PATH = os.path.abspath(os.path.join(__file__, "..","doesnotexist.txt"))
+NONEXIST_PATH = os.path.abspath(os.path.join(__file__, "..", "doesnotexist.txt"))
 
 
 @pytest.mark.parametrize(
@@ -442,10 +442,27 @@ def test_command_name_captured():
         pytest.fail("Expected Unbound Command Error")
 
 
+class CallParserError(CliPlugin):
+    def _create_parser(
+        self, command_group: Optional[_SubParsersAction] = None
+    ) -> ArgumentParser:
+
+        if command_group is not None:
+            return command_group.add_parser("relic_arg_parser_error")
+        else:
+            return RelicArgParser("relic_arg_parser_error")
+
+    def command(self, ns: Namespace, *, logger: logging.Logger) -> NoReturn:
+        self.parser.error("Forced Error")
+
+
 def test_error_raises_relic_arg_parser_error():
     cli = RelicCli()
+    CallParserError(cli.subparsers)
+    # Previously we tried adding a subparser
+    # But it seems macos raises an ArgumentError whereas windows just calls the error function?!
     try:
-        cli.parser.add_subparsers()
+        cli.run_with("relic_arg_parser_error")
     except RelicArgParserError:
         pass
     else:
