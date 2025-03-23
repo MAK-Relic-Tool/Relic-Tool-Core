@@ -8,7 +8,7 @@ on:
     paths:
     - src/relic/**
     - tests/**
-    - .github/workflows/**
+    - .github/workflows/*
     - pyproject.toml
     - .pylintrc
     - MANIFEST.in
@@ -20,7 +20,7 @@ on:
     paths:
     - src/relic/**
     - tests/**
-    - .github/workflows/**
+    - .github/workflows/*
     - pyproject.toml
     - .pylintrc
     - MANIFEST.in
