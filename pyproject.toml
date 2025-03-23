@@ -34,6 +34,41 @@ relic = "relic.core.cli:CLI.run"
 "Bug Tracker" = "https://github.com/MAK-Relic-Tool/Issues-Tracker/issues"
 Homepage = "https://github.com/MAK-Relic-Tool/Relic-Tool-Core"
 
+[tool.coverage.html]
+directory = ".pycoverage_reports/html"
+
+[tool.coverage.paths]
+source = [
+  "src/"
+]
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+exclude_also = [
+  # Don't complain about missing debug-only code:
+  "def __repr__",
+  "if self\\.debug",
+  # Don't complain if tests don't hit defensive assertion code:
+  "raise AssertionError",
+  "raise NotImplementedError",
+  # Don't complain if non-runnable code isn't run:
+  "if 0:",
+  "if __name__ == .__main__.:",
+  # Don't complain about abstract methods, they aren't run:
+  "@(abc\\.)?abstractmethod"
+]
+fail_under = 100
+ignore_errors = true
+omit = [
+  "tests/*"
+]
+show_missing = true
+skip_covered = true
+skip_empty = true
+
+[tool.coverage.run]
+branch = true
+
 [tool.mypy]
 check_untyped_defs = true
 disallow_any_generics = true
