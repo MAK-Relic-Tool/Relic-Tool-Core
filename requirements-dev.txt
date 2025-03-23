@@ -1,6 +1,7 @@
 # Include required modules
 -r requirements.txt
 black>=22.6.0
+coverage>=7.7.1
 mypy>=0.961
 pylint>=2.14.4
 pytest>=7.1.2

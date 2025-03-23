@@ -4,7 +4,7 @@ import os
 import zlib
 from dataclasses import dataclass
 from io import BytesIO
-from typing import BinaryIO, Optional, Any, Tuple, TypeVar, Type, Generator
+from typing import BinaryIO, Optional, Any, Tuple, TypeVar, Type, Generator, Union
 
 import pytest
 
@@ -223,7 +223,7 @@ class TestConstProperty:
 
 
 @contextlib.contextmanager
-def opt_stream(buf: bytes | bytearray, is_stream: bool):
+def opt_stream(buf: Union[bytes, bytearray], is_stream: bool):
     if is_stream:
         with BytesIO(buf) as h:
             yield h
@@ -258,11 +258,11 @@ def opt_stream(buf: bytes | bytearray, is_stream: bool):
     ],
 )
 def test_chunk_copy(
-    src: bytes | bytearray,
-    dest: bytes | bytearray,
-    src_start: int | None,
-    size: int | None,
-    dest_start: int | None,
+    src: Union[bytes, bytearray],
+    dest: Union[bytes, bytearray],
+    src_start: Optional[int],
+    size: Optional[int],
+    dest_start: Optional[int],
     src_is_stream: bool,
     dest_is_stream: bool,
     err: Type[RelicToolError],
@@ -310,7 +310,11 @@ def test_chunk_copy(
     ],
 )
 def test_read_chunks(
-    stream: Any, start: int | None, size: int | None, make_stream: bool, result: bytes
+    stream: Any,
+    start: Optional[int],
+    size: Optional[int],
+    make_stream: bool,
+    result: bytes,
 ):
     with opt_stream(stream, make_stream) as reader:
         with BytesIO() as writer:

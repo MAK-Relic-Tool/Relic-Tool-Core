@@ -200,9 +200,9 @@ class BinaryWrapper(BinaryIO):
 
     def __exit__(
         self,
-        __t: Type[BaseException] | None,
-        __value: BaseException | None,
-        __traceback: TracebackType | None,
+        __t: Union[Type[BaseException], None],
+        __value: Union[BaseException, None],
+        __traceback: Union[TracebackType, None],
     ) -> None:
         "`__exit__() on python.org <https://docs.python.org/library/typing.html#typing.IO.__exit__>`_"
         # TODO, this may fail to close the file if an err is thrown

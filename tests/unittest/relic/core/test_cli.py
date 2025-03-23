@@ -4,7 +4,7 @@ import os
 import sys
 from argparse import ArgumentParser, Namespace
 from os.path import basename
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type, Union
 from unittest import mock
 from unittest.mock import patch
 
@@ -129,7 +129,7 @@ class FakeCliPluginAltFunc(CliPlugin):
     [RelicCli, FakeCliPlugin, FakeCliPluginAltFunc],
 )
 @pytest.mark.parametrize("parent", [True, False])
-def test_init_cli(cli: Type[CliPlugin | CliPluginGroup], parent: bool):
+def test_init_cli(cli: Union[Type[CliPlugin], Type[CliPluginGroup]], parent: bool):
     parent_parser: Optional[Any] = None
     if parent:
         parent_parser = argparse.ArgumentParser().add_subparsers()
@@ -261,7 +261,7 @@ class ManualSetFunctionCliPlugin(CliPluginGroup):
 
 
 class ForceArgErrorCliPlugin(CliPlugin):
-    def __init__(self, parent: _SubParsersAction | None):
+    def __init__(self, parent: Optional[_SubParsersAction]):
         super().__init__(parent)
 
     def _create_parser(
@@ -277,7 +277,7 @@ class ForceArgErrorCliPlugin(CliPlugin):
 
 
 class ForceRelicParserErrorCliPlugin(CliPlugin):
-    def __init__(self, parent: _SubParsersAction | None):
+    def __init__(self, parent: Optional[_SubParsersAction]):
         super().__init__(parent)
 
     def _create_parser(
