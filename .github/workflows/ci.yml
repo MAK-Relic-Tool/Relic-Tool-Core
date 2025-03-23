@@ -25,6 +25,7 @@ on:
     - MANIFEST.in
     - requirements.txt
     - test-requirements.txt
+
 jobs:
   ci:
     uses: MAK-Relic-Tool/Workflows/.github/workflows/continuous-integration.yml@main
