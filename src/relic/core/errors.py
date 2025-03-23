@@ -4,10 +4,7 @@ Errors shared across all Relic Tools.
 
 from __future__ import annotations
 
-import sys
-from argparse import ArgumentParser, Action, ArgumentError
-
-from typing import Any, Optional, TypeVar, Generic, NoReturn
+from typing import Any, Optional, TypeVar, Generic
 
 
 def _print_mismatch(name: str, received: Optional[Any], expected: Optional[Any]) -> str:
@@ -127,49 +124,17 @@ class RelicSerializationSizeError(RelicSerializationError):
         super().__init__(msg)
 
 
+class RelicArgParserError(Exception):
+    """An error occurred while parsing Command Line arguments"""
+
+
 __all__ = [
     "RelicToolError",
     "MismatchError",
     "MagicMismatchError",
     "CliError",
+    "RelicArgParserError",
     "UnboundCommandError",
     "RelicSerializationError",
     "RelicSerializationSizeError",
 ]
-
-
-class RelicArgParserError(Exception):
-    """An error occurred while parsing Command Line arguments"""
-
-
-class RelicArgParser(ArgumentParser):
-    """
-    Custom ArgParser with special error handling
-    """
-
-    def _get_action_from_name(self, name: str | None) -> Action | None:
-        """Given a name, get the Action instance registered with this parser.
-        If only it were made available in the ArgumentError object. It is
-        passed as it's first arg...
-        """
-        container = self._actions
-        if name is None:
-            return None
-        for action in container:
-            if "/".join(action.option_strings) == name:
-                return action
-            if action.metavar == name:
-                return action
-            if action.dest == name:
-                return action
-
-        return None  # not found
-
-    def error(self, message: str) -> NoReturn:
-        _, exc, _ = sys.exc_info()
-        if exc is not None:
-            if isinstance(exc, ArgumentError) and exc.argument_name is None:
-                action = self._get_action_from_name(exc.argument_name)
-                exc.argument_name = action  # type:ignore # TODO, investigate
-            raise exc
-        raise RelicArgParserError(message)

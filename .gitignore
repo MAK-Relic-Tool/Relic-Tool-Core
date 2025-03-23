@@ -4,7 +4,7 @@ __pycache__/
 
 # Ignore Pycharm
 .idea/
-# Ignore pycharm coverage cache
+# Ignore coverage cache
 .coverage
 
 #Ignore pytest
@@ -25,3 +25,4 @@ docs/source/generated/**
 
 # Ignore local builds
 build/**
+.coverage

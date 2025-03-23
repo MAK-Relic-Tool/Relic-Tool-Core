@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace, ArgumentError
+from contextlib import contextmanager
 from dataclasses import dataclass
 from gettext import gettext
 from logging.config import fileConfig
@@ -16,17 +17,72 @@ from logging.handlers import RotatingFileHandler
 from os.path import basename
 from typing import (
     Optional,
-    TYPE_CHECKING,
     Protocol,
     Any,
     Union,
     Sequence,
     Callable,
     Tuple,
+    NoReturn,
+    Generator,
+    List,
 )
 
-from relic.core.errors import UnboundCommandError, RelicArgParserError, RelicArgParser
+from relic.core.errors import UnboundCommandError, RelicArgParserError
 from relic.core.typeshed import entry_points
+
+
+@dataclass
+class LogSetupOptions:
+    use_root: bool = True
+    add_sys_handlers: bool = True
+    add_file_handlers: bool = True
+    allow_config_file: bool = (
+        True  # config file can poison pill handlers; run_with can disable config_file
+    )
+
+
+class RelicArgParser(ArgumentParser):
+    """
+    Custom ArgParser with special error handling
+    """
+
+    # # Error would call this if it had a name to scan for, but it always passed None
+    # def _get_action_from_name(self, name: str | None) -> Action | None:
+    #     """Given a name, get the Action instance registered with this parser.
+    #     If only it were made available in the ArgumentError object. It is
+    #     passed as it's first arg...
+    #     """
+    #     container = self._actions
+    #     if name is None:
+    #         return None
+    #     for action in container:
+    #         if "/".join(action.option_strings) == name:
+    #             return action
+    #         if action.metavar == name:
+    #             return action
+    #         if action.dest == name:
+    #             return action
+    #
+    #     return None  # not found
+
+    def error(self, message: str) -> NoReturn:
+        _, exc, _ = sys.exc_info()
+        # # Also it appears in my test cases there is always an exception? But that shouldn't be true
+        if exc is not None:  # pragma: nocover
+            # # TODO; fix this?
+            # # This was trying to specify the argument name if it wasn't present, BUT
+            # # the if statement implies get_action_from_name should always return None
+            # # So something isn't working here, but what?
+            # if isinstance(exc, ArgumentError) and exc.argument_name is None:
+            #     action = self._get_action_from_name(exc.argument_name)
+            #     exc.argument_name = action  # type:ignore
+            if isinstance(exc, ArgumentError):
+                raise exc
+            else:
+                raise RelicArgParserError(message) from exc
+        raise RelicArgParserError(message)
+
 
 LOGLEVEL_TABLE = {
     "none": logging.NOTSET,
@@ -38,11 +94,11 @@ LOGLEVEL_TABLE = {
 }
 
 
-def _arg_exists_err(value: str) -> argparse.ArgumentTypeError:
+def get_arg_exists_err(value: str) -> argparse.ArgumentTypeError:
     return argparse.ArgumentTypeError(f"The given path '{value}' does not exist!")
 
 
-def _get_path_validator(exists: bool) -> Callable[[str], str]:
+def get_path_validator(exists: bool) -> Callable[[str], str]:
     def _path_type(path: str) -> str:
         path = os.path.abspath(path)
 
@@ -50,20 +106,15 @@ def _get_path_validator(exists: bool) -> Callable[[str], str]:
             parent, _ = os.path.split(_path)
 
             if len(parent) != 0 and parent != _path:
-                return _step(parent)
+                _step(parent)
 
-            if not os.path.exists(parent):
-                return None
-
-            if os.path.isfile(parent):
+            if os.path.exists(parent) and os.path.isfile(parent):
                 raise argparse.ArgumentTypeError(
                     f"The given path '{path}' is not a valid path; it treats a file ({parent}) as a directory!"
                 )
 
-            return None
-
         if exists and not os.path.exists(path):
-            raise _arg_exists_err(path)
+            raise get_arg_exists_err(path)
 
         _step(path)  # we want step to validate; but we dont care about its result
 
@@ -72,14 +123,14 @@ def _get_path_validator(exists: bool) -> Callable[[str], str]:
     return _path_type
 
 
-def _get_dir_type_validator(exists: bool) -> Callable[[str], str]:
-    validate_path = _get_path_validator(False)
+def get_dir_type_validator(exists: bool) -> Callable[[str], str]:
+    validate_path = get_path_validator(False)
 
     def _dir_type(path: str) -> str:
         path = os.path.abspath(path)
         if not os.path.exists(path):
             if exists:
-                raise _arg_exists_err(path)
+                raise get_arg_exists_err(path)
             return validate_path(path)
 
         if os.path.isdir(path):
@@ -90,14 +141,14 @@ def _get_dir_type_validator(exists: bool) -> Callable[[str], str]:
     return _dir_type
 
 
-def _get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
-    validate_path = _get_path_validator(False)
+def get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
+    validate_path = get_path_validator(False)
 
     def _file_type(path: str) -> str:
         path = os.path.abspath(path)
         if not os.path.exists(path):
             if exists:
-                raise _arg_exists_err(path)
+                raise get_arg_exists_err(path)
             return validate_path(path)
 
         if os.path.isfile(path):
@@ -109,7 +160,7 @@ def _get_file_type_validator(exists: Optional[bool]) -> Callable[[str], str]:
 
 
 @dataclass
-class LogingOptions:
+class CliLoggingOptions:
     log_file: Optional[str]
     log_level: int
     log_config: Optional[str]
@@ -121,7 +172,7 @@ def _add_logging_to_parser(
     """Adds [-l --log] and [-ll --loglevel] commands."""
     parser.add_argument(
         "--log",
-        type=_get_file_type_validator(False),
+        type=get_file_type_validator(False),
         help="Path to the log file, if one is generated",
         nargs="?",
         required=False,
@@ -137,26 +188,32 @@ def _add_logging_to_parser(
     )
     parser.add_argument(
         "--logconfig",
-        type=_get_file_type_validator(True),
+        type=get_file_type_validator(True),
         help="Path to a logging config file.",
         nargs="?",
         required=False,
     )
 
 
-def create_logger_from_namespace(ns: Namespace) -> logging.Logger:
-    logger = logging.getLogger()
-    options = _extract_logging_from_namespace(ns)
-    setup_logging_for_cli(options, logger=logger)
-    return logger
+@contextmanager
+def setup_cli_logging(
+    ns: Namespace,
+    logger: Optional[logging.Logger] = None,
+    options: Optional[LogSetupOptions] = None,
+) -> Generator[logging.Logger, None, None]:
+    ns_options = _extract_logging_from_namespace(ns)
+    with apply_logging_handlers(
+        cli_options=ns_options, logger=logger, setup_options=options
+    ) as cli_logger:
+        yield cli_logger
 
 
-def _extract_logging_from_namespace(ns: Namespace) -> LogingOptions:
+def _extract_logging_from_namespace(ns: Namespace) -> CliLoggingOptions:
     log_file: Optional[str] = ns.log
     log_level_name: str = ns.loglevel
     log_level = LOGLEVEL_TABLE[log_level_name]
     log_config: Optional[str] = ns.logconfig
-    return LogingOptions(log_file, log_level, log_config)
+    return CliLoggingOptions(log_file, log_level, log_config)
 
 
 def _create_log_formatter() -> logging.Formatter:
@@ -171,7 +228,7 @@ def _create_file_handler(log_file: str, log_level: int) -> logging.FileHandler:
     h = RotatingFileHandler(
         log_file,
         encoding="utf8",
-        maxBytes=100000,
+        maxBytes=1024 * 1024,
         backupCount=-1,
     )
     h.setFormatter(f)
@@ -199,26 +256,72 @@ def _create_console_handlers(
     return h_out, h_err
 
 
-def setup_logging_for_cli(
-    options: LogingOptions,
-    print_log: bool = True,
+@contextmanager
+def apply_logging_handlers(
+    cli_options: CliLoggingOptions,
     logger: Optional[logging.Logger] = None,
-) -> None:
-    logger = logger or logging.getLogger()  # Root logger
-    # Run first to override other loggers
-    if options.log_config is not None:
-        fileConfig(options.log_config)
+    setup_options: Optional[LogSetupOptions] = None,
+) -> Generator[logging.Logger, None, None]:
+    if setup_options is None:
+        setup_options = LogSetupOptions()
 
-    logger.setLevel(options.log_level)
+    handlers: List[logging.Handler] = []
+    if logger is None:
+        # File will always be relic.cli
+        logger = (
+            logging.getLogger()
+            if setup_options.use_root
+            else logging.getLogger(__name__)
+        )
+        # Run first to override other loggers
 
-    if options.log_file is not None:
-        h_log_file = _create_file_handler(options.log_file, options.log_level)
-        logger.addHandler(h_log_file)
+        LOG_CONFIG_FILE_WARN = False
+        LOG_FILE_WARN = False
 
-    if print_log:
-        h_out, h_err = _create_console_handlers(options.log_level, logging.WARNING)
-        logger.addHandler(h_out)
-        logger.addHandler(h_err)
+        if cli_options.log_config is not None:
+            if setup_options.allow_config_file:
+                fileConfig(cli_options.log_config)  # Kind-of a logging poison pill
+            else:
+                # A Weird Case; we want to log a warning, but we also dont configure the log yet
+                LOG_CONFIG_FILE_WARN = True
+
+        if any([setup_options.add_sys_handlers, setup_options.add_file_handlers]):
+            logger.setLevel(cli_options.log_level)
+
+        if setup_options.add_sys_handlers:
+            h_out, h_err = _create_console_handlers(
+                cli_options.log_level, logging.WARNING
+            )
+            logger.addHandler(h_out)
+            logger.addHandler(h_err)
+            handlers.append(h_out)
+            handlers.append(h_err)
+
+        if cli_options.log_file is not None:
+            if setup_options.add_file_handlers:
+                h_log_file = _create_file_handler(
+                    cli_options.log_file, cli_options.log_level
+                )
+                logger.addHandler(h_log_file)
+                handlers.append(h_log_file)
+            else:
+                # May be handled by sys handlers, otherwise will probably not be seen
+                LOG_FILE_WARN = True
+
+        if LOG_CONFIG_FILE_WARN:
+            logger.warning(
+                "Config Files have been disabled in the configured CLI, ignoring config file"
+            )
+        if LOG_FILE_WARN:
+            logger.warning(
+                "Log Files have been disabled in the configured CLI, ignoring log file"
+            )
+
+    try:
+        yield logger
+    finally:
+        for handler in handlers:
+            logger.removeHandler(handler)
 
 
 def _print_error(parser: ArgumentParser, message: str) -> None:
@@ -271,7 +374,14 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
     def __init__(self, parser: ArgumentParser):
         self.parser = parser
 
-    def _run(self, ns: Namespace, argv: Optional[Sequence[str]] = None) -> int:
+    def _run(
+        self,
+        ns: Namespace,
+        argv: Optional[Sequence[str]] = None,
+        *,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> int:
         """
         Run the command using args provided by namespace
 
@@ -300,13 +410,18 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         if not hasattr(ns, "function"):
             raise UnboundCommandError(cmd)
         func = ns.function
-        logger = create_logger_from_namespace(ns)
-        result: Optional[int] = func(ns, logger=logger)
+        with setup_cli_logging(ns, logger, log_setup_options) as cli_logger:
+            result: Optional[int] = func(ns, logger=cli_logger)
         if result is None:  # Assume success
             result = 0
         return result
 
-    def run_with(self, *args: str) -> Union[str, int, None]:
+    def run_with(
+        self,
+        *args: str,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> Union[str, int, None]:
         """
         Run the command line interface with the given arguments.
         :param args: The arguments that will be run on the command line interface.
@@ -320,11 +435,18 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
             args = args[1:]  # allow prog to be first command
         try:
             ns = self.parser.parse_args(args)
-            return self._run(ns, argv)
+            return self._run(
+                ns, argv, logger=logger, log_setup_options=log_setup_options
+            )
         except SystemExit as sys_exit:  # Do not capture the exit
             return sys_exit.code
 
-    def run(self) -> None:
+    def run(
+        self,
+        *,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> None:
         """
         Run the command line interface, using arguments from sys.argv, then terminates the process.
 
@@ -333,7 +455,9 @@ class _CliPlugin:  # pylint: disable= too-few-public-methods
         """
         try:
             ns = self.parser.parse_args()
-            exit_code = self._run(ns, sys.argv)
+            exit_code = self._run(
+                ns, sys.argv, logger=logger, log_setup_options=log_setup_options
+            )
             sys.exit(exit_code)
         except RelicArgParserError as e:
             _print_error(self.parser, e.args[0])
@@ -362,10 +486,10 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         parent: Optional[_SubParsersAction] = None,
         load_on_create: bool = True,
     ):
-        if TYPE_CHECKING:
-            self.subparsers = None
         if self.GROUP is None:
-            raise ValueError
+            raise RelicArgParserError(
+                f"{self.__class__.__name__}.GROUP was not specified!"
+            )
         parser = self._create_parser(parent)
         _add_logging_to_parser(parser)
         super().__init__(parser)
@@ -382,13 +506,25 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         self.load_plugins()
         self.__loaded = True
 
-    def run(self) -> None:
+    def run(
+        self,
+        *,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> None:
         self._preload()
-        return super().run()
+        return super().run(logger=logger, log_setup_options=log_setup_options)
 
-    def run_with(self, *args: str) -> Union[str, int, None]:
+    def run_with(
+        self,
+        *args: str,
+        logger: Optional[logging.Logger] = None,
+        log_setup_options: Optional[LogSetupOptions] = None,
+    ) -> Union[str, int, None]:
         self._preload()
-        return super().run_with(*args)
+        return super().run_with(
+            *args, logger=logger, log_setup_options=log_setup_options
+        )
 
     def _create_parser(
         self, command_group: Optional[_SubParsersAction] = None
@@ -403,7 +539,9 @@ class CliPluginGroup(_CliPlugin):  # pylint: disable= too-few-public-methods
         Load all entrypoints using the group specified by the class-variable GROUP
         """
 
-        for ep in entry_points().select(group=self.GROUP):
+        for ep in entry_points().select(
+            group=self.GROUP
+        ):  # pragma: nocover # TODO, use mock.patch to test
             ep_func: CliEntrypoint = ep.load()
             ep_func(parent=self.subparsers)
 
@@ -482,7 +620,7 @@ if __name__ == "__main__":
 
 __all__ = [
     "RelicArgParserError",  # Should move to relic.core.errors in next major
-    "RelicArgParser",  # Should move to relic.core.errors in next major
+    # Should move to relic.core.errors in next major
     "CLI",
     "CliPlugin",
     "CliPluginGroup",

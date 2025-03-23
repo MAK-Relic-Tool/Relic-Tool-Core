@@ -200,9 +200,9 @@ class BinaryWrapper(BinaryIO):
 
     def __exit__(
         self,
-        __t: Type[BaseException] | None,
-        __value: BaseException | None,
-        __traceback: TracebackType | None,
+        __t: Union[Type[BaseException], None],
+        __value: Union[BaseException, None],
+        __traceback: Union[TracebackType, None],
     ) -> None:
         "`__exit__() on python.org <https://docs.python.org/library/typing.html#typing.IO.__exit__>`_"
         # TODO, this may fail to close the file if an err is thrown
@@ -291,11 +291,6 @@ class BinaryWindow(BinaryWrapper):
             raise ValueError(__whence)
 
         if new_now < 0:  # or new_now > self._size # Allow seek past end of file?
-            __whence_str = {
-                os.SEEK_SET: "start",
-                os.SEEK_CUR: "offset",
-                os.SEEK_END: "end",
-            }[__whence]
             raise RelicToolError("Invalid Seek: seeking past start of stream!")
         super().seek(self._start + new_now)
         self._now = new_now
@@ -685,6 +680,9 @@ class BinaryProxySerializer(BinaryProxy):  # pylint: disable= R0903
         return self._serializer
 
 
+# This was definitely used for compressed chunks in SGA
+# But SGA now handles that by decompressing the blob so we can write directly to it, right?
+# Deprecate?
 class ZLibFileReader(BinaryWrapper):
     """
     A wrapper which lazily reads a Z-Lib compressed file.
@@ -958,6 +956,9 @@ class CStringConverter(BinaryConverter[str]):
                 raise RelicToolError("CString Converter")
 
             _padding = self._padding.encode(self._encoding)
+            if len(_padding) == 0:
+                raise RelicToolError("CString Converter")
+
             pad_size = (self._size - len(encoded)) / len(_padding)
             if int(pad_size) != pad_size:
                 raise RelicToolError("CString Converter")
@@ -1009,7 +1010,7 @@ class BinaryProperty(Generic[_T]):
 
 class ConstProperty(Generic[_T]):
     """
-    A property for a contsant value
+    A property for a constant value
     Raises an error if a new constant is set
     """
 

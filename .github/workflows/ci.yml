@@ -32,5 +32,5 @@ jobs:
     uses: MAK-Relic-Tool/Workflows/.github/workflows/continuous-integration.yml@main
     with:
       package: relic.core
-      runners: '["ubuntu-latest"]' # Should only need to test against python version, not platform
+      # runners: ["ubuntu-latest"] We have to run all runners, we do pathing checks, *sigh*
       test-path: ./tests
