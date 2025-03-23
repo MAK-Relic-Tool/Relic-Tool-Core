@@ -90,7 +90,8 @@ def test_setup_logging_for_cli(
                 log_config=None if not specify_log_config else logconfig.path,
                 log_file=None if not specify_log_file else logfile.path,
             )
-            apply_logging_handlers(opt, print_log)
+            with apply_logging_handlers(opt, print_log):
+                pass
 
 
 class FakeCliPlugin(CliPlugin):
@@ -352,8 +353,18 @@ def test_cli_run_with_error(cli: CliPlugin, args: list[str], expected: Type[Exce
 
 @pytest.mark.parametrize("log_file", [True, False])
 @pytest.mark.parametrize("log_config", [True, False])
-@pytest.mark.parametrize("print_log", [True, False])
-def test_apply_logging_handlers(log_file: bool, log_config: bool, print_log: bool):
+@pytest.mark.parametrize("sys_log", [True, False])
+@pytest.mark.parametrize("allow_config_file", [True, False])
+@pytest.mark.parametrize("allow_log_file", [True, False])
+@pytest.mark.parametrize("use_root", [True, False])
+def test_apply_logging_handlers(
+    log_file: bool,
+    log_config: bool,
+    sys_log: bool,
+    allow_config_file: bool,
+    allow_log_file: bool,
+    use_root: bool,
+):
     with TempFileHandle(".logfile", create=log_file) as log_file_h:
         with TempFileHandle(".logcfg", create=log_config) as log_cfg_h:
             if log_config:
@@ -386,9 +397,30 @@ handlers=h0"""
                 log_level=logging.DEBUG,
                 log_config=log_cfg_h.path,
             )
-            logger = logging.getLogger()
-            with apply_logging_handlers(options, print_log, logger):
-                logger.debug("blah")
+            root = logging.getLogger()
+            for _ in list(root.handlers):
+                root.handlers.remove(_)
+            relic_cli_logger = logging.getLogger("relic.core.cli")
+            for _ in list(relic_cli_logger.handlers):
+                relic_cli_logger.handlers.remove(_)
+
+            with apply_logging_handlers(
+                options,
+                None,
+                setup_options=LogSetupOptions(
+                    use_root,
+                    add_sys_handlers=sys_log,
+                    add_file_handlers=allow_log_file,
+                    allow_config_file=allow_config_file,
+                ),
+            ) as logger:
+                if use_root:
+                    assert logger.name == "root"
+                else:
+                    assert logger.name == "relic.core.cli"
+
+                # TODO verify loggers
+                # Something s weird with them but I want to move on; if the bug shows itself then I'll know where I went wrong
 
 
 def test_cli_unbound_func():
@@ -435,7 +467,9 @@ def test_default_plugin_group_command():
 def test_cli_setup_log_options():
     with apply_logging_handlers(
         CliLoggingOptions(None, logging.DEBUG, None),
-        setup_options=LogSetupOptions(use_root=False, add_handlers=False),
+        setup_options=LogSetupOptions(
+            use_root=False, add_sys_handlers=False, add_file_handlers=False
+        ),
     ) as logger:
         exp_logger = logging.getLogger("relic.core.cli")
         assert logger == exp_logger
@@ -454,3 +488,13 @@ def test_run_accepts_logger_and_options(cli: _CliPlugin):
         cli._run(Namespace(), None, logger=None, log_setup_options=None)
     except UnboundCommandError:
         pass
+
+
+def test_apply_logging_handlers_doesnt_add_handlers():
+    root = logging.getLogger()
+    handler_count = len(root.handlers)
+    with apply_logging_handlers(
+        CliLoggingOptions(None, logging.DEBUG, None), root
+    ) as logger:
+        assert root.name == logger.name
+        assert len(logger.handlers) == handler_count

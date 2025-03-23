@@ -35,7 +35,11 @@ from relic.core.typeshed import entry_points
 @dataclass
 class LogSetupOptions:
     use_root: bool = True
-    add_handlers: bool = True
+    add_sys_handlers: bool = True
+    add_file_handlers: bool = True
+    allow_config_file: bool = (
+        True  # config file can poison pill handlers; run_with can disable config_file
+    )
 
 
 class RelicArgParser(ArgumentParser):
@@ -196,7 +200,7 @@ def setup_cli_logging(
 ) -> Generator[logging.Logger, None, None]:
     ns_options = _extract_logging_from_namespace(ns)
     with apply_logging_handlers(
-        cli_options=ns_options, print_log=True, logger=logger, setup_options=options
+        cli_options=ns_options, logger=logger, setup_options=options
     ) as cli_logger:
         yield cli_logger
 
@@ -252,13 +256,13 @@ def _create_console_handlers(
 @contextmanager
 def apply_logging_handlers(
     cli_options: CliLoggingOptions,
-    print_log: bool = True,
     logger: Optional[logging.Logger] = None,
     setup_options: Optional[LogSetupOptions] = None,
 ) -> Generator[logging.Logger, None, None]:
     if setup_options is None:
         setup_options = LogSetupOptions()
 
+    handlers: List[logging.Handler] = []
     if logger is None:
         # File will always be relic.cli
         logger = (
@@ -266,23 +270,22 @@ def apply_logging_handlers(
             if setup_options.use_root
             else logging.getLogger(__name__)
         )
-
-    handlers: List[logging.Handler] = []
-    if setup_options.add_handlers:
         # Run first to override other loggers
+
+        LOG_CONFIG_FILE_WARN = False
+        LOG_FILE_WARN = False
+
         if cli_options.log_config is not None:
-            fileConfig(cli_options.log_config)  # Kind-of a logging poison pill
+            if setup_options.allow_config_file:
+                fileConfig(cli_options.log_config)  # Kind-of a logging poison pill
+            else:
+                # A Weird Case; we want to log a warning, but we also dont configure the log yet
+                LOG_CONFIG_FILE_WARN = True
 
-        logger.setLevel(cli_options.log_level)
+        if any([setup_options.add_sys_handlers, setup_options.add_file_handlers]):
+            logger.setLevel(cli_options.log_level)
 
-        if cli_options.log_file is not None:
-            h_log_file = _create_file_handler(
-                cli_options.log_file, cli_options.log_level
-            )
-            logger.addHandler(h_log_file)
-            handlers.append(h_log_file)
-
-        if print_log:
+        if setup_options.add_sys_handlers:
             h_out, h_err = _create_console_handlers(
                 cli_options.log_level, logging.WARNING
             )
@@ -290,6 +293,27 @@ def apply_logging_handlers(
             logger.addHandler(h_err)
             handlers.append(h_out)
             handlers.append(h_err)
+
+        if cli_options.log_file is not None:
+            if setup_options.add_file_handlers:
+                h_log_file = _create_file_handler(
+                    cli_options.log_file, cli_options.log_level
+                )
+                logger.addHandler(h_log_file)
+                handlers.append(h_log_file)
+            else:
+                # May be handled by sys handlers, otherwise will probably not be seen
+                LOG_FILE_WARN = True
+
+        if LOG_CONFIG_FILE_WARN:
+            logger.warning(
+                "Config Files have been disabled in the configured CLI, ignoring config file"
+            )
+        if LOG_FILE_WARN:
+            logger.warning(
+                "Log Files have been disabled in the configured CLI, ignoring log file"
+            )
+
     try:
         yield logger
     finally:
