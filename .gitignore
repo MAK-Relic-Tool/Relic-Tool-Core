@@ -4,6 +4,8 @@ __pycache__/
 
 # Ignore Pycharm
 .idea/
+# Ignore pycharm coverage cache
+.coverage
 
 #Ignore pytest
 .pytest_cache/
