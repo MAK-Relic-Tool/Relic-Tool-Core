@@ -33,3 +33,4 @@ jobs:
     with:
       package: relic.core
       runners: '["ubuntu-latest"]' # Should only need to test against python version, not platform
+      test-path: ./tests
